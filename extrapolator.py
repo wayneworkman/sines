@@ -71,8 +71,8 @@ def main():
 
     # Plotting
     plt.figure(figsize=(12, 6))
-    plt.plot(actual_data_in_range.index, actual_data_in_range.values, label="Actual Sunspots", color="blue")
-    plt.plot(reconstructed_dates, reconstructed_data, label="Reconstructed Sunspots", color="orange")
+    plt.plot(actual_data_in_range.index, actual_data_in_range.values, label="Observed Data", color="blue")
+    plt.plot(reconstructed_dates, reconstructed_data, label="Combined Sine Waves", color="orange")
     plt.title(f"Sunspot Data from {START_DATE.year} to {END_DATE.year}")
     plt.xlabel("Date")
     plt.ylabel("Sunspot Number")
