@@ -6,9 +6,6 @@ import json
 import argparse
 from datetime import datetime
 
-# Constants for date range
-START_DATE = datetime(1677, 9, 22)
-END_DATE = datetime(2262, 4, 10)
 
 # Load and process sunspot data from a provided CSV file
 def load_data(file_path, date_col="date", value_col="sunspot", moving_average=None):
@@ -25,22 +22,26 @@ def load_data(file_path, date_col="date", value_col="sunspot", moving_average=No
     return df.set_index(date_col)[value_col]
 
 # Generate sine wave based on parameters
-def generate_sine_wave(params, num_points):
+
+def generate_sine_wave(params, t):
     amplitude, frequency, phase_shift = params["amplitude"], params["frequency"], params["phase_shift"]
-    t = np.arange(num_points, dtype=np.float32)
     sine_wave = amplitude * np.sin(2 * np.pi * frequency * t + phase_shift)
     return np.maximum(sine_wave, 0)
 
+
 # Load previous sine waves and combine them
 def load_and_combine_waves(start_date, end_date, waves_dir):
+
     num_points = (end_date - start_date).days + 1
+    t = np.arange(num_points, dtype=np.float32)  # Index-based t values to match sines.py
+    combined_wave = np.zeros(num_points, dtype=np.float32)
     combined_wave = np.zeros(num_points, dtype=np.float32)
 
     for filename in sorted(os.listdir(waves_dir)):
         if filename.endswith(".json"):
             with open(os.path.join(waves_dir, filename), "r") as f:
                 wave_params = json.load(f)
-                wave = generate_sine_wave(wave_params, num_points)
+                wave = generate_sine_wave(wave_params, t)
                 combined_wave += wave
 
     return np.maximum(combined_wave, 0)
@@ -48,6 +49,10 @@ def load_and_combine_waves(start_date, end_date, waves_dir):
 # Main function for generating and plotting the data
 def main():
     parser = argparse.ArgumentParser(description="Sunspot Data Extrapolator Using Sine Waves")
+    parser.add_argument('--predict-before', type=float, default=5.0,
+                        help="Percentage of time to predict before the observed data (default: 5%%)")
+    parser.add_argument('--predict-after', type=float, default=5.0,
+                        help="Percentage of time to predict after the observed data (default: 5%%)")
     parser.add_argument('--data-file', type=str, required=True, help="Path to the sunspot data file")
     parser.add_argument('--date-col', type=str, default="date", help="Name of the date column in the data")
     parser.add_argument('--value-col', type=str, default="sunspot", help="Name of the value column in the data")
@@ -61,9 +66,15 @@ def main():
         print("No data loaded.")
         return
 
-    start_date = START_DATE
-    end_date = END_DATE
+    # Calculate start and end dates to match the observed data
+    observed_start = sunspot_data.index.min()
+    observed_end = sunspot_data.index.max()
+    time_range = observed_end - observed_start
+
+    start_date = observed_start - pd.Timedelta(days=int(time_range.days * (args.predict_before / 100)))
+    end_date = observed_end + pd.Timedelta(days=int(time_range.days * (args.predict_after / 100)))
     actual_data_in_range = sunspot_data[(sunspot_data.index >= start_date) & (sunspot_data.index <= end_date)]
+
 
     # Generate reconstructed data
     reconstructed_data = load_and_combine_waves(start_date, end_date, args.waves_dir)
@@ -73,7 +84,7 @@ def main():
     plt.figure(figsize=(12, 6))
     plt.plot(actual_data_in_range.index, actual_data_in_range.values, label="Observed Data", color="blue")
     plt.plot(reconstructed_dates, reconstructed_data, label="Combined Sine Waves", color="orange")
-    plt.title(f"Sunspot Data from {START_DATE.year} to {END_DATE.year}")
+    plt.title(f"Sunspot Data from {start_date.year} to {end_date.year}")
     plt.xlabel("Date")
     plt.ylabel("Sunspot Number")
     plt.legend()
