@@ -62,7 +62,7 @@ The `sines.py` script processes time series data to identify sine waves that mod
 
 **Example Usage**:
 ```bash
-python3 sines.py --data-file sample_data/generate_synthetic_timeseries/sample_data.csv --date-col date --value-col value --desired-step-size fine --desired-refinement-step-size fine --max-waves 5
+python3 sines.py --data-file sample_data/sunspots/SN_d_tot_V2.0.csv --date-col date --value-col sunspot --desired-step-size fast --desired-refinement-step-size fast --wave-count 5 --set-negatives-zero
 ```
 
 #### Arguments
@@ -84,7 +84,7 @@ The `extrapolator.py` script reconstructs and extrapolates the data using genera
 
 **Usage**:
 ```bash
-python extrapolator.py --waves-dir "waves"
+python3 extrapolator.py --data-file sample_data/sunspots/SN_d_tot_V2.0.csv --date-col date --value-col sunspot
 ```
 
 This command will load all sine wave parameters, combine them, and plot the reconstructed time series data alongside the actual data.
