@@ -5,7 +5,7 @@ from datetime import timedelta
 import logging
 
 # Global constant to limit the number of series to process
-SERIES_LIMIT = 5  # Adjust this to process more or fewer series
+SERIES_LIMIT = 1  # Adjust this to process more or fewer series
 
 # Configure logging for detailed output
 # logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(message)s")
