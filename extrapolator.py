@@ -44,7 +44,10 @@ def load_and_combine_waves_with_indices(date_index_tuples, waves_dir, set_negati
                 wave = generate_sine_wave_with_indices(wave_params, indices, set_negatives_zero)
                 combined_wave += wave
 
-    return np.maximum(combined_wave, 0)
+    if set_negatives_zero:
+        return np.maximum(combined_wave, 0)
+    else:
+        return combined_wave
 
 # Main function for generating and plotting the data
 def main():
