@@ -13,6 +13,8 @@
 - [Usage](#usage)
   - [Generating Sine Waves](#generating-sine-waves)
   - [Extrapolating Data](#extrapolating-data)
+- [Testing](#testing)
+  - [Test Script: `test_sines.py`](#test-script-test_sinespy)
 - [Performance](#performance)
 - [Known Limitations](#known-limitations)
 - [Logging](#logging)
@@ -86,6 +88,24 @@ python3 extrapolator.py --data-file sample_data/sunspots/SN_d_tot_V2.0.csv --dat
 ```
 
 This command will load all sine wave parameters, combine them, and plot the reconstructed time series data alongside the actual data.
+
+## Testing
+
+### Test Script: `test_sines.py`
+
+The `test_sines.py` script is a comprehensive suite of unit tests that validate various functionalities within the **Sines Project**. It tests key components such as sine wave generation, data loading, wave parameter refinement, and OpenCL support for GPU acceleration.
+
+**Highlights of the Test Cases**:
+- **Sine Wave Generation**: Tests basic and edge cases for sine wave generation.
+- **Data Loading**: Validates data loading from CSV and JSON, handling missing or malformed data, and testing moving averages.
+- **Wave Parameter Refinement**: Ensures that the refinement function can handle edge cases, such as empty candidate lists.
+- **Integration Tests**: Simulates full integration, from loading data to searching and refining wave parameters.
+- **OpenCL Support**: Mocks and tests for OpenCL platform and device detection, ensuring compatibility with NVIDIA GPUs.
+
+Run the test suite with:
+```bash
+python -m unittest test_sines.py
+```
 
 ## Performance
 
