@@ -14,17 +14,24 @@ def load_data(file_path, date_col="date", value_col="sunspot", moving_average=No
     except FileNotFoundError:
         print(f"Error: File '{file_path}' not found.")
         return None
+    except pd.errors.ParserError as e:
+        print(f"Error parsing '{file_path}': {e}")
+        return None
+
+    if value_col not in df.columns:
+        print(f"Error: Value column '{value_col}' not found in the data.")
+        return None
 
     if moving_average:
         df[value_col] = df[value_col].rolling(window=moving_average, min_periods=1).mean()
-    
+
     return df.set_index(date_col)[value_col]
 
 # Generate sine wave based on indices
 def generate_sine_wave_with_indices(params, indices, set_negatives_zero=False):
-    amplitude = params["amplitude"]
-    frequency = params["frequency"]
-    phase_shift = params["phase_shift"]
+    amplitude = params.get("amplitude", 1.0)
+    frequency = params.get("frequency", 0.001)
+    phase_shift = params.get("phase_shift", 0.0)
     sine_wave = amplitude * np.sin(2 * np.pi * frequency * indices + phase_shift)
     if set_negatives_zero:
         sine_wave = np.maximum(sine_wave, 0)
@@ -35,19 +42,41 @@ def load_and_combine_waves_with_indices(date_index_tuples, waves_dir, set_negati
     num_points = len(date_index_tuples)
     combined_wave = np.zeros(num_points, dtype=np.float32)
 
-    for filename in sorted(os.listdir(waves_dir)):
-        if filename.endswith(".json"):
-            with open(os.path.join(waves_dir, filename), "r") as f:
+    if not os.path.exists(waves_dir):
+        print(f"Error: Waves directory '{waves_dir}' does not exist.")
+        return combined_wave
+
+    wave_files = sorted([f for f in os.listdir(waves_dir) if f.endswith(".json")])
+    print(f"Loading {len(wave_files)} waves from '{waves_dir}'")
+
+    for filename in wave_files:
+        wave_path = os.path.join(waves_dir, filename)
+        try:
+            with open(wave_path, "r") as f:
                 wave_params = json.load(f)
-                # Extract indices from the tuples
-                indices = np.array([idx for _, idx in date_index_tuples], dtype=np.float32)
-                wave = generate_sine_wave_with_indices(wave_params, indices, set_negatives_zero)
-                combined_wave += wave
+        except json.JSONDecodeError:
+            print(f"Error: Wave file '{filename}' is not a valid JSON. Skipping.")
+            continue
+        except Exception as e:
+            print(f"Error reading '{filename}': {e}. Skipping.")
+            continue
+
+        amplitude = wave_params.get("amplitude", 1.0)
+        frequency = wave_params.get("frequency", 0.001)
+        phase_shift = wave_params.get("phase_shift", 0.0)
+        print(f"Loading Wave: {filename}, Amplitude: {amplitude}, Frequency: {frequency}, Phase Shift: {phase_shift}")
+
+        indices = np.array([idx for _, idx in date_index_tuples], dtype=np.float32)
+        wave = generate_sine_wave_with_indices(wave_params, indices, set_negatives_zero)
+        combined_wave += wave
+        print(f"After adding {filename}, Combined Wave max: {combined_wave.max()}, min: {combined_wave.min()}")
 
     if set_negatives_zero:
-        return np.maximum(combined_wave, 0)
-    else:
-        return combined_wave
+        combined_wave = np.maximum(combined_wave, 0)
+
+    print(f"Final Combined Wave Statistics:\nMin: {combined_wave.min()}, Max: {combined_wave.max()}, Mean: {combined_wave.mean()}")
+
+    return combined_wave
 
 # Main function for generating and plotting the data
 def main():
@@ -68,7 +97,7 @@ def main():
     # Load sunspot data
     sunspot_data = load_data(args.data_file, date_col=args.date_col, value_col=args.value_col, moving_average=args.moving_average)
     if sunspot_data is None:
-        print("No data loaded.")
+        print("No data loaded. Exiting.")
         return
 
     # Determine observed start and end dates
@@ -76,16 +105,27 @@ def main():
     observed_end = sunspot_data.index.max()
     time_range_days = (observed_end - observed_start).days
 
+    print(f"Observed Data Start Date: {observed_start.date()}")
+    print(f"Observed Data End Date: {observed_end.date()}")
+    print(f"Time Range (days): {time_range_days}")
+
     # Calculate number of days to predict before and after
     predict_before_days = int(time_range_days * (args.predict_before / 100))
     predict_after_days = int(time_range_days * (args.predict_after / 100))
+
+    print(f"Predicting {predict_before_days} days before the observed data.")
+    print(f"Predicting {predict_after_days} days after the observed data.")
 
     # Define extended start and end dates
     extended_start_date = observed_start - pd.Timedelta(days=predict_before_days)
     extended_end_date = observed_end + pd.Timedelta(days=predict_after_days)
 
+    print(f"Extended Start Date: {extended_start_date.date()}")
+    print(f"Extended End Date: {extended_end_date.date()}")
+
     # Generate the full date range
     full_date_range = pd.date_range(start=extended_start_date, end=extended_end_date, freq='D')
+    print(f"Total Number of Points (days): {len(full_date_range)}")
 
     # Create list of tuples (datetime, index)
     # Index 0 corresponds to observed_start
@@ -107,6 +147,10 @@ def main():
         set_negatives_zero=args.set_negatives_zero
     )
     reconstructed_dates = [dt for dt, idx in date_index_tuples]
+
+    # Additional Debugging: Print reconstructed data statistics
+    print(f"Reconstructed Data Statistics:\nMin: {reconstructed_data.min()}, Max: {reconstructed_data.max()}, Mean: {reconstructed_data.mean()}")
+
 
     # Plotting
     plt.figure(figsize=(12, 6))
