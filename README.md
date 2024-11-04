@@ -4,7 +4,6 @@
 ![Sines Project Logo](./sines.svg)
 
 ## Table of Contents
-
 - [Introduction](#introduction)
 - [Features](#features)
 - [Intent](#intent)
@@ -26,11 +25,11 @@ The **Sines Project** is a powerful toolset designed for modeling and extrapolat
 
 ## Features
 
-- **Automated Sine Wave Generation**: Use brute-force and refinement techniques to identify optimal sine wave parameters that best fit your data.
-- **GPU Acceleration**: Leverage GPU computational power for intensive calculations.
-- **Real-Time Visualization**: Monitor the fitting progress with dynamic plotting capabilities.
-- **Data Extrapolation**: Reconstruct and extrapolate data using identified sine waves.
-- **Logging**: Track the process with detailed log files.
+- **Automated Sine Wave Generation**: Uses brute-force and refinement techniques to identify optimal sine wave parameters that best fit your data.
+- **GPU Acceleration**: Leverages GPU computational power for intensive calculations.
+- **Real-Time Visualization**: Monitors the fitting progress with dynamic plotting capabilities.
+- **Data Extrapolation**: Reconstructs and extrapolates data using identified sine waves.
+- **Logging**: Tracks the process with detailed log files.
 
 ## Intent
 
@@ -38,20 +37,20 @@ The **Sines Project** provides a framework for decomposing and analyzing time se
 
 ## How It Works
 
-The project operates in two primary phases: **Brute-Force Search** and **Refinement**. These phases work together to identify sine wave parameters that accurately model the input data.
+The project operates in two primary phases: **Brute-Force Search** and **Refinement**.
 
 ### Phase One: Brute-Force Search
 
-1. **Parameter Grid Generation**: Generate a grid of possible sine wave parameters (amplitude, frequency, phase shift).
-2. **Fitness Calculation**: For each parameter combination, calculate a fitness score by comparing it against the observed data.
-3. **Top Candidates Selection**: Retain the top-performing parameter combinations with the lowest fitness scores.
-4. **Real-Time Visualization**: Continuously update plots to visualize the fitting progress.
+1. **Parameter Grid Generation**: Generates a grid of possible sine wave parameters (amplitude, frequency, phase shift).
+2. **Fitness Calculation**: For each parameter combination, calculates a fitness score by comparing it against the observed data.
+3. **Top Candidates Selection**: Retains the top-performing parameter combinations with the lowest fitness scores.
+4. **Real-Time Visualization**: Continuously updates plots to visualize the fitting progress.
 
 ### Phase Two: Refinement
 
-1. **Focused Parameter Search**: Perform a finer search around top candidates from the brute-force phase.
-2. **Fitness Recalculation**: Recompute fitness scores for refined parameter combinations.
-3. **Best Parameters Identification**: Select parameters that yield the best fitness scores.
+1. **Focused Parameter Search**: Performs a finer search around top candidates from the brute-force phase.
+2. **Fitness Recalculation**: Recomputes fitness scores for refined parameter combinations.
+3. **Best Parameters Identification**: Selects parameters that yield the best fitness scores.
 4. **Optional Refinement**: Users can skip this phase for faster results.
 
 ## Usage
@@ -66,7 +65,6 @@ python3 sines.py --data-file sample_data/sunspots/SN_d_tot_V2.0.csv --date-col d
 ```
 
 #### Arguments
-
 - `--data-file`: Path to the input data file (JSON or CSV).
 - `--date-col`: Name of the date column in the input data (default: `date`).
 - `--value-col`: Name of the value column in the input data (default: `value`).
@@ -124,7 +122,6 @@ This method provides a robust and accurate date-based reconstruction.
 ## Logging
 
 Both `sines.py` and `extrapolator.py` generate detailed logs.
-
 - **Log Directory**: Defined by `--log-dir` in `sines.py`.
 - **Log Contents**:
   - Progress updates
@@ -132,35 +129,15 @@ Both `sines.py` and `extrapolator.py` generate detailed logs.
   - Parameter selections
   - Warnings and error messages
 
-
 ## OpenCL Support Test
 
-The repository includes a script, `test_OpenCL_support.py`, to verify OpenCL support and GPU functionality on your system. This script performs two checks:
-
-1. **Device Detection**: It lists available OpenCL platforms and devices to confirm that OpenCL is installed and able to recognize GPU devices.
-2. **Simple Calculation Test**: It performs a basic vector addition operation on the GPU. This step ensures that OpenCL computations execute correctly.
-
-**Usage**:
-
-Run the test script as follows:
+The repository includes a script, `test_OpenCL_support.py`, for verifying OpenCL support and GPU functionality.
 
 ```bash
 python test_OpenCL_support.py
 ```
 
-Expected output includes details of available platforms and devices, as well as a sample calculation result demonstrating GPU functionality.
-
-**Example Output**:
-
-```
-Platform: NVIDIA CUDA, Device: GeForce GTX 1050
-Vector A: [0.123, 0.456, ...]
-Vector B: [0.789, 0.012, ...]
-Result (A + B): [0.912, 0.468, ...]
-OpenCL test completed successfully.
-```
-
-If your system does not support OpenCL or encounters issues, the script will display an error message.
+Expected output includes details of available platforms and devices, as well as a sample calculation result.
 
 
 ## Contributing
@@ -169,4 +146,4 @@ Contributions are welcome! Please open an issue or submit a pull request.
 
 ---
 
-**Disclaimer**: This project is provided "as is" without warranty of any kind. Use it at your own risk.
+**Disclaimer**: This project is provided "as is" without warranty. Use at your own risk.
