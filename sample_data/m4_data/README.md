@@ -60,6 +60,18 @@ Each file includes columns for `Timestamp` and `Value`.
 
 The script includes optional logging to help debug and monitor the processing flow, providing detailed information on each step. To enable the logging, uncomment the logging configuration.
 
+## Using the data
+
+After having run the script to produce the training data and test data, you can use `sines.py` like this with the training data.
+```
+python3 sines.py --data-file ~/Downloads/M4Data_transformed/M1_Monthly-train.csv --date-col Timestamp --value-col Value --wave-count 0 --desired-refinement-step-size fast
+```
+
+After having comleted a sufficient amount of training, you can stop sines.py and use `extrapolator.py` with the testing data.
+```
+python3 extrapolator.py --data-file ~/Downloads/M4Data_transformed/M1_Monthly-test_combined.csv --date-col Timestamp --value-col Value
+```
+
 ## Disclaimer
 
 Please note that data downloaded from the M4 GitHub repository is used under the terms specified by the repository owners. Since the M4 repository lacks a specific license, we ensure compliance by not redistributing the data and instead downloading it directly as part of this script.

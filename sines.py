@@ -14,42 +14,56 @@ from sys import exit
 LOCAL_WORK_SIZE = 256  # Work group size for OpenCL, must be compatible with GPU
 
 # Configuration constants for step sizes
+
 STEP_SIZES = {
+    'ultrafine': {
+        'amplitude': np.arange(1, 20000, 1),
+        'frequency': np.arange(0.00001, 0.001, 0.0000075),
+        'phase_shift': np.arange(0, 2 * np.pi, 0.025)
+    },
     'fine': {
-        'amplitude': np.arange(1, 101, 1.0),
+        'amplitude': np.arange(1, 20000, 2),
         'frequency': np.arange(0.00001, 0.001, 0.000015),
         'phase_shift': np.arange(0, 2 * np.pi, 0.05)
     },
     'normal': {
-        'amplitude': np.arange(1, 101, 1.5),
+        'amplitude': np.arange(1, 20000, 4),
         'frequency': np.arange(0.00001, 0.001, 0.00003),
         'phase_shift': np.arange(0, 2 * np.pi, 0.15)
     },
     'fast': {
-        'amplitude': np.arange(1, 101, 3.0),
+        'amplitude': np.arange(1, 20000, 8),
         'frequency': np.arange(0.00001, 0.001, 0.00006),
         'phase_shift': np.arange(0, 2 * np.pi, 0.3)
     }
 }
 
+
 # Refinement step sizes configuration with smaller steps
+
 REFINEMENT_STEP_SIZES = {
-    'fine': {
+    'ultrafine': {
         'amplitude_step': 0.01,
+        'frequency_step': 0.00000005,
+        'phase_shift_step': 0.0005
+    },
+    'fine': {
+        'amplitude_step': 0.02,
         'frequency_step': 0.0000001,
         'phase_shift_step': 0.001
     },
     'normal': {
-        'amplitude_step': 0.02,
+        'amplitude_step': 0.05,
         'frequency_step': 0.0000005,
         'phase_shift_step': 0.002
     },
     'fast': {
-        'amplitude_step': 0.05,
+        'amplitude_step': 0.1,
         'frequency_step': 0.000001,
         'phase_shift_step': 0.005
     }
 }
+
 
 # -------------------- Refinement Phase Implementation -------------------- #
 
@@ -430,6 +444,9 @@ def main():
                         help="Desired step size mode for refinement phase. Use 'skip' to skip refinement.")
     parser.add_argument('--no-plot', action='store_true', help="Disable real-time plotting")
     parser.add_argument('--wave-count', type=int, default=50, help="Number of waves to generate before exiting. Use 0 for infinite.")
+
+    parser.add_argument('--progressive-step-sizes', action='store_true', default=True,
+                        help="Dynamically choose step size based on observed and combined wave differences")
     parser.add_argument('--set-negatives-zero', action='store_true', help="Set sine wave values below zero to zero")
     args = parser.parse_args()
 
@@ -473,6 +490,21 @@ def main():
         wave_count += 1
         logging.info(f"Starting discovery of wave {wave_count}")
 
+
+        # Dynamic step size selection based on average difference
+        if args.progressive_step_sizes:
+            difference = np.mean(np.abs(observed_data - combined_wave))
+            if difference > 1000:
+                step_size = 'fast'
+            elif difference > 200:
+                step_size = 'normal'
+            elif difference > 100:
+                step_size = 'fine'
+            else:
+                step_size = 'ultrafine'
+            logging.info(f"Using {step_size} step size based on difference: {difference:.2f}")
+        else:
+            step_size = args.desired_step_size
         top_candidates = brute_force_sine_wave_search(
             observed_data, combined_wave, context, queue, ax, wave_count,
             desired_step_size=args.desired_step_size,
