@@ -35,7 +35,6 @@ def load_and_combine_waves(start_date, end_date, waves_dir):
     num_points = (end_date - start_date).days + 1
     t = np.arange(num_points, dtype=np.float32)  # Index-based t values to match sines.py
     combined_wave = np.zeros(num_points, dtype=np.float32)
-    combined_wave = np.zeros(num_points, dtype=np.float32)
 
     for filename in sorted(os.listdir(waves_dir)):
         if filename.endswith(".json"):
