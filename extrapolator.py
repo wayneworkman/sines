@@ -6,7 +6,6 @@ import json
 import argparse
 from datetime import datetime
 
-
 # Load and process sunspot data from a provided CSV file
 def load_data(file_path, date_col="date", value_col="sunspot", moving_average=None):
     try:
@@ -21,26 +20,28 @@ def load_data(file_path, date_col="date", value_col="sunspot", moving_average=No
     
     return df.set_index(date_col)[value_col]
 
-# Generate sine wave based on parameters
+# Generate sine wave based on indices
+def generate_sine_wave_with_indices(params, indices, set_negatives_zero=False):
+    amplitude = params["amplitude"]
+    frequency = params["frequency"]
+    phase_shift = params["phase_shift"]
+    sine_wave = amplitude * np.sin(2 * np.pi * frequency * indices + phase_shift)
+    if set_negatives_zero:
+        sine_wave = np.maximum(sine_wave, 0)
+    return sine_wave
 
-def generate_sine_wave(params, t):
-    amplitude, frequency, phase_shift = params["amplitude"], params["frequency"], params["phase_shift"]
-    sine_wave = amplitude * np.sin(2 * np.pi * frequency * t + phase_shift)
-    return np.maximum(sine_wave, 0)
-
-
-# Load previous sine waves and combine them
-def load_and_combine_waves(start_date, end_date, waves_dir):
-
-    num_points = (end_date - start_date).days + 1
-    t = np.arange(num_points, dtype=np.float32)  # Index-based t values to match sines.py
+# Load previous sine waves and combine them based on date indices
+def load_and_combine_waves_with_indices(date_index_tuples, waves_dir, set_negatives_zero=False):
+    num_points = len(date_index_tuples)
     combined_wave = np.zeros(num_points, dtype=np.float32)
 
     for filename in sorted(os.listdir(waves_dir)):
         if filename.endswith(".json"):
             with open(os.path.join(waves_dir, filename), "r") as f:
                 wave_params = json.load(f)
-                wave = generate_sine_wave(wave_params, t)
+                # Extract indices from the tuples
+                indices = np.array([idx for _, idx in date_index_tuples], dtype=np.float32)
+                wave = generate_sine_wave_with_indices(wave_params, indices, set_negatives_zero)
                 combined_wave += wave
 
     return np.maximum(combined_wave, 0)
@@ -57,6 +58,8 @@ def main():
     parser.add_argument('--value-col', type=str, default="sunspot", help="Name of the value column in the data")
     parser.add_argument('--moving-average', type=int, help="Apply a moving average filter to smooth the data")
     parser.add_argument('--waves-dir', type=str, default="waves", help="Directory containing sine wave JSON files (default: 'waves')")
+    parser.add_argument('--set-negatives-zero', action='store_true', default=False,
+                        help="Set sine wave values below zero to zero (default: False)")
     args = parser.parse_args()
 
     # Load sunspot data
@@ -65,25 +68,48 @@ def main():
         print("No data loaded.")
         return
 
-    # Calculate start and end dates to match the observed data
+    # Determine observed start and end dates
     observed_start = sunspot_data.index.min()
     observed_end = sunspot_data.index.max()
-    time_range = observed_end - observed_start
+    time_range_days = (observed_end - observed_start).days
 
-    start_date = observed_start - pd.Timedelta(days=int(time_range.days * (args.predict_before / 100)))
-    end_date = observed_end + pd.Timedelta(days=int(time_range.days * (args.predict_after / 100)))
-    actual_data_in_range = sunspot_data[(sunspot_data.index >= start_date) & (sunspot_data.index <= end_date)]
+    # Calculate number of days to predict before and after
+    predict_before_days = int(time_range_days * (args.predict_before / 100))
+    predict_after_days = int(time_range_days * (args.predict_after / 100))
 
+    # Define extended start and end dates
+    extended_start_date = observed_start - pd.Timedelta(days=predict_before_days)
+    extended_end_date = observed_end + pd.Timedelta(days=predict_after_days)
 
-    # Generate reconstructed data
-    reconstructed_data = load_and_combine_waves(start_date, end_date, args.waves_dir)
-    reconstructed_dates = pd.date_range(start=start_date, end=end_date)
+    # Generate the full date range
+    full_date_range = pd.date_range(start=extended_start_date, end=extended_end_date, freq='D')
+
+    # Create list of tuples (datetime, index)
+    # Index 0 corresponds to observed_start
+    date_index_tuples = []
+    for single_date in full_date_range:
+        index = (single_date - observed_start).days
+        date_index_tuples.append((single_date, index))
+
+    # For debugging: Print a sample of date-index mapping
+    print("Sample Date-Index Mapping:")
+    for dt, idx in date_index_tuples[:5]:
+        print(f"Date: {dt.date()}, Index: {idx}")
+    print("...")
+
+    # Generate reconstructed data using the extended date range
+    reconstructed_data = load_and_combine_waves_with_indices(
+        date_index_tuples, 
+        args.waves_dir, 
+        set_negatives_zero=args.set_negatives_zero
+    )
+    reconstructed_dates = [dt for dt, idx in date_index_tuples]
 
     # Plotting
     plt.figure(figsize=(12, 6))
-    plt.plot(actual_data_in_range.index, actual_data_in_range.values, label="Observed Data", color="blue")
+    plt.plot(sunspot_data.index, sunspot_data.values, label="Observed Data", color="blue")
     plt.plot(reconstructed_dates, reconstructed_data, label="Combined Sine Waves", color="orange")
-    plt.title(f"Sunspot Data from {start_date.year} to {end_date.year}")
+    plt.title(f"Sunspot Data from {extended_start_date.year} to {extended_end_date.year}")
     plt.xlabel("Date")
     plt.ylabel("Sunspot Number")
     plt.legend()
