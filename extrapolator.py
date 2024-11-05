@@ -95,7 +95,7 @@ def generate_combined_sine_wave(sine_waves, indices, set_negatives_zero=False):
     Parameters:
         sine_waves (list): List of dictionaries with sine wave parameters.
         indices (np.ndarray): Array of indices.
-        set_negatives_zero (bool): If True, set negative sine values to zero per wave.
+        set_negatives_zero (bool): If True, set negative sine values to zero per wave or after sum.
 
     Returns:
         combined_wave (np.ndarray): Combined sine wave values.
@@ -107,11 +107,14 @@ def generate_combined_sine_wave(sine_waves, indices, set_negatives_zero=False):
         phase_shift = wave['phase_shift']
         sine_wave = amplitude * np.sin(2 * np.pi * frequency * indices + phase_shift)
         
-        if set_negatives_zero:
+        if set_negatives_zero == 'per_wave':
             sine_wave = np.maximum(sine_wave, 0)  # Set negative values to zero per sine wave
         
         combined_wave += sine_wave
         print(f"Added Wave {idx}: Amplitude={amplitude}, Frequency={frequency}, Phase Shift={phase_shift}")
+    
+    if set_negatives_zero == 'after_sum':
+        combined_wave = np.maximum(combined_wave, 0)  # Set negative values to zero after sum
     
     return combined_wave
 
@@ -163,7 +166,8 @@ def main():
     parser.add_argument('--waves-dir', type=str, default='waves', help='Directory containing sine wave JSON files (default: waves)')
     parser.add_argument('--date-col', type=str, default='Timestamp', help='Name of the column containing date information (default: Timestamp)')
     parser.add_argument('--value-col', type=str, default='Value', help='Name of the column containing observed values (default: Value)')
-    parser.add_argument('--set-negatives-zero', action='store_true', help='Set negative sine wave values to zero per wave')
+    parser.add_argument('--set-negatives-zero', type=str, choices=['after_sum', 'per_wave'], default='after_sum',
+                        help="How to handle negative sine wave values: 'after_sum' (default) or 'per_wave'")
     
     args = parser.parse_args()
     
