@@ -7,8 +7,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from datetime import datetime
 import logging
-from json import dumps
-from sys import exit
 
 # Constants
 LOCAL_WORK_SIZE = 256  # Work group size for OpenCL, must be compatible with GPU
@@ -470,11 +468,11 @@ def main():
         # Dynamic step size selection based on average difference
         if args.progressive_step_sizes:
             difference = np.mean(np.abs(observed_data - combined_wave))
-            if difference > 40:
+            if difference > 1000:
                 step_size = 'fast'
-            elif difference > 10:
+            elif difference > 100:
                 step_size = 'normal'
-            elif difference > 5:
+            elif difference > 20:
                 step_size = 'fine'
             else:
                 step_size = 'ultrafine'

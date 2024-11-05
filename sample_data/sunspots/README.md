@@ -9,7 +9,7 @@ python3 download.py
 
 You can then use sines.py to model this data like such:
 ```
-python3 sines.py --data-file sample_data/sunspots/SN_d_tot_V2.0.csv --date-col date --value-col sunspot --wave-count 5 --desired-refinement-step-size fast --set-negatives-zero
+python3 sines.py --data-file sample_data/sunspots/SN_d_tot_V2.0.csv --date-col date --value-col sunspot --wave-count 5 --set-negatives-zero after_sum
 ```
 
 You can use the extrapolator.py to extrapolate the model out into the future or the past.

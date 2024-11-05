@@ -1,4 +1,3 @@
-
 # Sines Project
 
 ![Sines Project Logo](./sines.svg)
@@ -11,10 +10,14 @@
   - [Phase One: Brute-Force Search](#phase-one-brute-force-search)
   - [Phase Two: Refinement](#phase-two-refinement)
 - [Usage](#usage)
-  - [Generating Sine Waves](#generating-sine-waves)
-  - [Extrapolating Data](#extrapolating-data)
+  - [Generating Sine Waves (`sines.py`)](#generating-sine-waves-sinespy)
+  - [Extrapolating Data (`extrapolator.py`)](#extrapolating-data-extrapolatorpy)
+  - [Testing OpenCL Support (`test_OpenCL_support.py`)](#testing-opencl-support-test_opencl_supportpy)
+  - [Running Unit Tests (`tests.py`)](#running-unit-tests-testspy)
+  - [Sample Data Scripts](#sample-data-scripts)
 - [Testing](#testing)
   - [Test Script: `test_sines.py`](#test-script-test_sinespy)
+  - [Test Suite: `tests.py`](#test-suite-testspy)
 - [Performance](#performance)
 - [Known Limitations](#known-limitations)
 - [Logging](#logging)
@@ -27,11 +30,12 @@ The **Sines Project** is a powerful toolset designed for modeling and extrapolat
 
 ## Features
 
-- **Automated Sine Wave Generation**: Uses brute-force and refinement techniques to identify optimal sine wave parameters that best fit your data.
-- **GPU Acceleration**: Leverages GPU computational power for intensive calculations.
+- **Automated Sine Wave Generation**: Utilizes brute-force and refinement techniques to identify optimal sine wave parameters that best fit your data.
+- **GPU Acceleration**: Leverages GPU computational power through OpenCL for intensive calculations.
 - **Real-Time Visualization**: Monitors the fitting progress with dynamic plotting capabilities.
 - **Data Extrapolation**: Reconstructs and extrapolates data using identified sine waves.
 - **Logging**: Tracks the process with detailed log files.
+- **Comprehensive Testing**: Includes unit tests to ensure reliability and correctness.
 
 ## Intent
 
@@ -62,9 +66,9 @@ The project operates in two primary phases: **Brute-Force Search** and **Refinem
 The `sines.py` script processes time series data to identify sine waves that model the data accurately.
 
 **Example Usage**:
-```bash
-python3 sines.py --data-file sample_data/sunspots/SN_d_tot_V2.0.csv --date-col date --value-col sunspot --desired-step-size fast --desired-refinement-step-size fast --wave-count 5 --set-negatives-zero
-```
+TRIPLE_BACK_QUOTESbash
+python3 sines.py --data-file sample_data/sunspots/SN_d_tot_V2.0.csv --date-col date --value-col sunspot --desired-step-size fast --desired-refinement-step-size fast --wave-count 5 --set-negatives-zero after_sum
+TRIPLE_BACK_QUOTES
 
 #### Arguments
 - `--data-file`: Path to the input data file (JSON or CSV).
@@ -83,11 +87,35 @@ python3 sines.py --data-file sample_data/sunspots/SN_d_tot_V2.0.csv --date-col d
 The `extrapolator.py` script reconstructs and extrapolates the data using generated sine waves.
 
 **Usage**:
-```bash
+TRIPLE_BACK_QUOTESbash
 python3 extrapolator.py --data-file sample_data/sunspots/SN_d_tot_V2.0.csv --date-col date --value-col sunspot
-```
+TRIPLE_BACK_QUOTES
 
 This command will load all sine wave parameters, combine them, and plot the reconstructed time series data alongside the actual data.
+
+### Testing OpenCL Support (`test_OpenCL_support.py`)
+
+The `test_OpenCL_support.py` script verifies OpenCL support and GPU functionality.
+
+**Usage**:
+TRIPLE_BACK_QUOTESbash
+python3 test_OpenCL_support.py
+TRIPLE_BACK_QUOTES
+
+Expected output includes details of available platforms and devices, as well as a sample calculation result.
+
+### Running Unit Tests (`tests.py`)
+
+The `tests.py` script contains a comprehensive suite of unit tests to validate various functionalities within the **Sines Project**.
+
+**Usage**:
+TRIPLE_BACK_QUOTESbash
+python -m unittest tests.py
+TRIPLE_BACK_QUOTES
+
+### Sample Data Scripts
+
+The `sample_data` directory contains scripts designed to pull, update, or generate test data for the **Sines Project**. These scripts have their own README files, which provide detailed instructions on their usage and functionalities.
 
 ## Testing
 
@@ -103,21 +131,34 @@ The `test_sines.py` script is a comprehensive suite of unit tests that validate 
 - **OpenCL Support**: Mocks and tests for OpenCL platform and device detection, ensuring compatibility with NVIDIA GPUs.
 
 Run the test suite with:
-```bash
+TRIPLE_BACK_QUOTESbash
 python -m unittest test_sines.py
-```
+TRIPLE_BACK_QUOTES
+
+### Test Suite: `tests.py`
+
+The `tests.py` script extends the testing framework with additional test cases, ensuring comprehensive coverage of all functionalities.
+
+Run the test suite with:
+TRIPLE_BACK_QUOTESbash
+python -m unittest tests.py
+TRIPLE_BACK_QUOTES
 
 ## Performance
 
-The **Sines Project** has been optimized for GPU resources, enhancing processing speed. Benchmarks:
+The **Sines Project** has been optimized for GPU resources, enhancing processing speed. 
+
+**Performance Benchmarks**:
 
 - **Processor**: Intel Core i5-2400 @ 3.10 GHz (4 cores)
 - **RAM**: 16 GB
 - **GPU**: Nvidia Quadro 6000
 - **OS**: Ubuntu 20.04.6 LTS
-- **Dataset**: Solar Sunspot Data with 75,546 data points (CSV format)
+- **Dataset Examples**:
+  - **Solar Sunspot Data**: 75,546 data points with a maximum amplitude of ~375. Each brute-force search phase takes approximately 8-10 seconds per wave discovery.
+  - **M4 Test Data**: 470 data points with a maximum amplitude nearing 60,000. Due to the increased search space, discovering sine waves for such datasets takes significantly longer.
 
-On this setup, each brute-force search phase takes approximately 8-10 seconds per wave discovery.
+**Note**: Datasets with higher maximum amplitudes increase the search space, resulting in longer processing times during sine wave discovery. Users should expect extended runtimes when working with such datasets.
 
 ## Known Limitations
 
@@ -125,23 +166,12 @@ On this setup, each brute-force search phase takes approximately 8-10 seconds pe
   - **Start Date**: 1677-09-22
   - **End Date**: 2262-04-10
 - **Date-Free Sines Processing**: The `sines.py` script generates sine waves based on data indices, without a date context. Thus, the date range limitation within `extrapolator.py` is not present within `sines.py`.
-
-## How Sine Waves are Mapped to Dates
-
-The sine waves generated by `sines.py` are accurately mapped onto a date-based timeline in the final extrapolated graph (the displayed matplotlib graph (users can manually save the graph via the interface if needed)) using these steps:
-
-1. **Parameter-Based Wave Generation**: `sines.py` produces sine waves as amplitude values indexed by data position.
-2. **Cumulative Series Construction**: These sine waves are saved in JSON files (e.g., `wave_1.json`) representing a cumulative series that, when summed, aligns with observed sunspot variations.
-3. **Date Mapping with `extrapolator.py`**:
-   - The `extrapolator.py` script defines a fixed date range (`START_DATE = 1677-09-22`, `END_DATE = 2262-04-10`) and maps the cumulative sine wave series onto it.
-   - Using `pd.date_range`, the script generates a date index to match each reconstructed sine wave value to a calendar date.
-4. **Summing Over the Date Range**: The sine wave parameters are re-generated over the full date range, covering historical and future dates. The resulting series is plotted with actual data, creating an accurate time alignment.
-
-This method provides a robust and accurate date-based reconstruction.
+- **Performance on Large Datasets**: High-amplitude datasets with extensive data points significantly increase processing times due to larger search spaces.
 
 ## Logging
 
 Both `sines.py` and `extrapolator.py` generate detailed logs.
+
 - **Log Directory**: Defined by `--log-dir` in `sines.py`.
 - **Log Contents**:
   - Progress updates
@@ -149,16 +179,7 @@ Both `sines.py` and `extrapolator.py` generate detailed logs.
   - Parameter selections
   - Warnings and error messages
 
-## OpenCL Support Test
-
-The repository includes a script, `test_OpenCL_support.py`, for verifying OpenCL support and GPU functionality.
-
-```bash
-python test_OpenCL_support.py
-```
-
-Expected output includes details of available platforms and devices, as well as a sample calculation result.
-
+Logs are instrumental for monitoring the process and diagnosing issues during wave discovery and data extrapolation.
 
 ## Contributing
 

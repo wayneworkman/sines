@@ -1,10 +1,10 @@
+
 import unittest
 import numpy as np
 import pyopencl as cl
 import os
 import shutil
 import tempfile
-from unittest import mock
 import pandas as pd
 from unittest.mock import patch, MagicMock
 from sines import (
@@ -13,7 +13,8 @@ from sines import (
     load_previous_waves,
     refine_candidates,
     brute_force_sine_wave_search,
-    setup_opencl
+    setup_opencl,
+    STEP_SIZES  # Import STEP_SIZES for modification
 )
 from extrapolator import (
     load_observed_data,
@@ -46,6 +47,33 @@ class TestSines(unittest.TestCase):
 
         # Create a temporary directory for test files
         self.test_dir = tempfile.mkdtemp()
+
+        # Initialize STEP_SIZES with default values for testing
+        max_observed = 1.0  # Assuming a default max_observed value
+        scaling_factor = 1.5
+        amplitude_upper_limit = max_observed * scaling_factor
+
+        # Define STEP_SIZES similar to main() in sines.py
+        STEP_SIZES['ultrafine'] = {
+            'amplitude': np.arange(0.1, amplitude_upper_limit, 0.01 * max_observed),
+            'frequency': np.arange(0.00001, 0.001, 0.0000075),
+            'phase_shift': np.arange(0, 2 * np.pi, 0.025)
+        }
+        STEP_SIZES['fine'] = {
+            'amplitude': np.arange(0.1, amplitude_upper_limit, 0.02 * max_observed),
+            'frequency': np.arange(0.00001, 0.001, 0.000015),
+            'phase_shift': np.arange(0, 2 * np.pi, 0.05)
+        }
+        STEP_SIZES['normal'] = {
+            'amplitude': np.arange(0.1, amplitude_upper_limit, 0.05 * max_observed),
+            'frequency': np.arange(0.00001, 0.001, 0.00003),
+            'phase_shift': np.arange(0, 2 * np.pi, 0.15)
+        }
+        STEP_SIZES['fast'] = {
+            'amplitude': np.arange(0.1, amplitude_upper_limit, 0.1 * max_observed),
+            'frequency': np.arange(0.00001, 0.001, 0.00006),
+            'phase_shift': np.arange(0, 2 * np.pi, 0.3)
+        }
 
     def tearDown(self):
         # Remove the temporary directory after tests
