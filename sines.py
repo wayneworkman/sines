@@ -38,7 +38,6 @@ STEP_SIZES = {
     }
 }
 
-
 # Refinement step sizes configuration with smaller steps
 
 REFINEMENT_STEP_SIZES = {
@@ -64,40 +63,11 @@ REFINEMENT_STEP_SIZES = {
     }
 }
 
-
 # -------------------- Refinement Phase Implementation -------------------- #
 
 def refine_candidates(top_candidates, observed_data, combined_wave, context, queue, ax, wave_count, desired_refinement_step_size='fast', set_negatives_zero=False):
     logging.info(f"Wave {wave_count}: Starting refinement phase.")
 
-
-    # This logic will activate when combined_wave contains something other than all zeros,
-    # which should be the case for wave 2 discovery.
-    # if np.all(combined_wave != 0):
-    #     # Extract numerical values from top_candidates
-    #     # Each candidate is a tuple: (params_dict, score)
-    #     # We will extract amplitude, frequency, phase_shift, and score
-    #     top_candidates_numeric = [
-    #         [candidate[0]['amplitude'], candidate[0]['frequency'], candidate[0]['phase_shift'], candidate[1]]
-    #         for candidate in top_candidates
-    #     ]
-
-    #     # Save top_candidates_numeric as a human-readable text file
-    #     np.savetxt(
-    #         'test_data_top_candidates.txt',
-    #         top_candidates_numeric,
-    #         delimiter=',',
-    #         header='amplitude,frequency,phase_shift,score',
-    #         comments=''
-    #     )
-
-    #     # Save observed_data and combined_wave as before
-    #     np.savetxt('test_data_observed_data.txt', observed_data, delimiter=',')
-    #     np.savetxt('test_data_combined_wave.txt', combined_wave, delimiter=',')
-
-    #     exit()
-
-    
     refined_best_score = np.inf
     refined_best_params = None
 
@@ -293,7 +263,8 @@ def load_previous_waves(num_points, output_dir, set_negatives_zero=False):
             try:
                 with open(os.path.join(output_dir, filename), "r") as f:
                     wave_params = json.load(f)
-                    combined_wave += generate_sine_wave(wave_params, num_points, set_negatives_zero)
+                    sine_wave = generate_sine_wave(wave_params, num_points, set_negatives_zero)
+                    combined_wave += sine_wave
             except json.JSONDecodeError:
                 logging.warning(f"Error loading wave file {filename}. Skipping corrupted file.")
     return combined_wave
@@ -447,7 +418,8 @@ def main():
 
     parser.add_argument('--progressive-step-sizes', action='store_true', default=True,
                         help="Dynamically choose step size based on observed and combined wave differences")
-    parser.add_argument('--set-negatives-zero', action='store_true', help="Set sine wave values below zero to zero")
+    parser.add_argument('--set-negatives-zero', type=str, choices=['after_sum', 'per_wave'], default='after_sum',
+                        help="How to handle negative sine wave values: 'after_sum' (default) or 'per_wave'")
     args = parser.parse_args()
 
     # Setup logging after parsing arguments
@@ -470,7 +442,7 @@ def main():
     if not os.path.exists(args.waves_dir):
         os.makedirs(args.waves_dir)
 
-    combined_wave = load_previous_waves(len(observed_data), args.waves_dir, set_negatives_zero=args.set_negatives_zero)
+    combined_wave = load_previous_waves(len(observed_data), args.waves_dir, set_negatives_zero=(args.set_negatives_zero == 'after_sum'))
 
     # Initialize plotting if not disabled
     if not args.no_plot:
@@ -490,7 +462,6 @@ def main():
         wave_count += 1
         logging.info(f"Starting discovery of wave {wave_count}")
 
-
         # Dynamic step size selection based on average difference
         if args.progressive_step_sizes:
             difference = np.mean(np.abs(observed_data - combined_wave))
@@ -507,15 +478,15 @@ def main():
             step_size = args.desired_step_size
         top_candidates = brute_force_sine_wave_search(
             observed_data, combined_wave, context, queue, ax, wave_count,
-            desired_step_size=args.desired_step_size,
-            set_negatives_zero=args.set_negatives_zero
+            desired_step_size=step_size,
+            set_negatives_zero=(args.set_negatives_zero == 'after_sum')
         )
 
         if args.desired_refinement_step_size.lower() != 'skip':
             best_params, best_score = refine_candidates(
                 top_candidates, observed_data, combined_wave, context, queue, ax, wave_count,
                 desired_refinement_step_size=args.desired_refinement_step_size,
-                set_negatives_zero=args.set_negatives_zero
+                set_negatives_zero=(args.set_negatives_zero == 'after_sum')
             )
         else:
             best_params, best_score = top_candidates[0][0], top_candidates[0][1]
@@ -527,8 +498,13 @@ def main():
             with open(os.path.join(args.waves_dir, f"wave_{wave_id}.json"), "w") as f:
                 json.dump(best_params, f)
 
-            new_wave = generate_sine_wave(best_params, len(observed_data), set_negatives_zero=args.set_negatives_zero)
-            combined_wave += new_wave
+            new_wave = generate_sine_wave(best_params, len(observed_data), set_negatives_zero=(args.set_negatives_zero == 'per_wave'))
+            if args.set_negatives_zero == 'per_wave':
+                # If handling per_wave, simply add the new_wave
+                combined_wave += new_wave
+            elif args.set_negatives_zero == 'after_sum':
+                # Reload all waves and recompute the combined_wave
+                combined_wave = load_previous_waves(len(observed_data), args.waves_dir, set_negatives_zero=True)
 
             if not args.no_plot and ax is not None:
                 ax.clear()
