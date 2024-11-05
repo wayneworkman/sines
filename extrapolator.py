@@ -1,236 +1,144 @@
 import os
+import json
+import argparse
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import json
-import argparse
-from datetime import datetime
 
-# Reset Matplotlib to default settings to prevent residual configurations
-plt.rcParams.update(plt.rcParamsDefault)
+def load_observed_data(file_path, value_col='Value'):
+    """
+    Load the observed data from a CSV file and assign sequential indices.
 
-# Load and process sunspot data from a provided CSV file
-def load_data(file_path, date_col="date", value_col="sunspot", moving_average=None):
+    Parameters:
+        file_path (str): Path to the CSV data file.
+        value_col (str): Name of the column containing the observed values.
+
+    Returns:
+        indices (np.ndarray): Array of indices.
+        data_values (np.ndarray): Array of observed data values.
+    """
     try:
-        # Parse the date column and sort the DataFrame by date
-        df = pd.read_csv(file_path, parse_dates=[date_col])
-        df = df.sort_values(by=date_col)
+        df = pd.read_csv(file_path)
+        if value_col not in df.columns:
+            raise ValueError(f"Value column '{value_col}' not found in the data.")
+        data_values = df[value_col].values
+        indices = np.arange(len(data_values))
+        return indices, data_values
     except FileNotFoundError:
-        print(f"Error: File '{file_path}' not found.")
-        return None
-    except pd.errors.ParserError as e:
-        print(f"Error parsing '{file_path}': {e}")
-        return None
+        print(f"Error: Data file '{file_path}' not found.")
+        exit(1)
+    except Exception as e:
+        print(f"Error loading data: {e}")
+        exit(1)
 
-    if value_col not in df.columns:
-        print(f"Error: Value column '{value_col}' not found in the data.")
-        return None
+def load_sine_waves(waves_dir):
+    """
+    Load sine wave parameters from JSON files in the specified directory.
 
-    # Apply moving average if specified
-    if moving_average:
-        df[value_col] = df[value_col].rolling(window=moving_average, min_periods=1).mean()
+    Parameters:
+        waves_dir (str): Directory containing sine wave JSON files.
 
-    return df.set_index(date_col)[value_col]
-
-# Generate sine wave based on indices with frequency scaling
-def generate_sine_wave_with_indices(params, indices, set_negatives_zero=False, step_conversion_factor=1.0):
-    amplitude = params.get("amplitude", 1.0)
-    frequency = params.get("frequency", 0.001) * step_conversion_factor  # Adjust frequency based on step
-    phase_shift = params.get("phase_shift", 0.0)
-    sine_wave = amplitude * np.sin(2 * np.pi * frequency * indices + phase_shift)
-    if set_negatives_zero:
-        sine_wave = np.maximum(sine_wave, 0)
-    return sine_wave
-
-# Load previous sine waves and combine them based on date indices
-def load_and_combine_waves_with_indices(date_index_tuples, waves_dir, set_negatives_zero=False, step_conversion_factor=1.0):
-    num_points = len(date_index_tuples)
-    combined_wave = np.zeros(num_points, dtype=np.float32)
-
-    if not os.path.exists(waves_dir):
+    Returns:
+        sine_waves (list): List of dictionaries with sine wave parameters.
+    """
+    sine_waves = []
+    if not os.path.isdir(waves_dir):
         print(f"Error: Waves directory '{waves_dir}' does not exist.")
-        return combined_wave
+        exit(1)
+    
+    for filename in sorted(os.listdir(waves_dir)):
+        if filename.endswith('.json'):
+            wave_path = os.path.join(waves_dir, filename)
+            try:
+                with open(wave_path, 'r') as f:
+                    wave_params = json.load(f)
+                # Validate required parameters
+                if not all(k in wave_params for k in ('amplitude', 'frequency', 'phase_shift')):
+                    raise ValueError(f"Wave file '{filename}' is missing required parameters.")
+                sine_waves.append(wave_params)
+            except json.JSONDecodeError:
+                print(f"Warning: Wave file '{filename}' is not a valid JSON. Skipping.")
+            except Exception as e:
+                print(f"Warning: Could not load wave file '{filename}': {e}. Skipping.")
+    if not sine_waves:
+        print(f"Error: No valid sine wave JSON files found in '{waves_dir}'.")
+        exit(1)
+    return sine_waves
 
-    # Retrieve all JSON wave files
-    wave_files = sorted([f for f in os.listdir(waves_dir) if f.endswith(".json")])
-    print(f"Loading {len(wave_files)} wave(s) from '{waves_dir}'")
+def generate_combined_sine_wave(sine_waves, indices, set_negatives_zero=False):
+    """
+    Generate and combine multiple sine waves based on their parameters.
 
-    for filename in wave_files:
-        wave_path = os.path.join(waves_dir, filename)
-        try:
-            with open(wave_path, "r") as f:
-                wave_params = json.load(f)
-        except json.JSONDecodeError:
-            print(f"Error: Wave file '{filename}' is not a valid JSON. Skipping.")
-            continue
-        except Exception as e:
-            print(f"Error reading '{filename}': {e}. Skipping.")
-            continue
+    Parameters:
+        sine_waves (list): List of dictionaries with sine wave parameters.
+        indices (np.ndarray): Array of indices.
+        set_negatives_zero (bool): If True, set negative sine values to zero.
 
-        amplitude = wave_params.get("amplitude", 1.0)
-        frequency = wave_params.get("frequency", 0.001)
-        phase_shift = wave_params.get("phase_shift", 0.0)
-        print(f"Loading Wave: {filename}, Amplitude: {amplitude}, Frequency: {frequency}, Phase Shift: {phase_shift}")
-
-        # Extract indices from date_index_tuples
-        indices = np.array([idx for _, idx in date_index_tuples], dtype=np.float32)
-        # Generate the sine wave based on indices
-        wave = generate_sine_wave_with_indices(wave_params, indices, set_negatives_zero, step_conversion_factor)
-        # Combine the wave
-        combined_wave += wave
-        print(f"After adding {filename}, Combined Wave max: {combined_wave.max()}, min: {combined_wave.min()}")
-
+    Returns:
+        combined_wave (np.ndarray): Combined sine wave values.
+    """
+    combined_wave = np.zeros_like(indices, dtype=np.float64)
+    for idx, wave in enumerate(sine_waves, start=1):
+        amplitude = wave['amplitude']
+        frequency = wave['frequency']
+        phase_shift = wave['phase_shift']
+        sine_wave = amplitude * np.sin(2 * np.pi * frequency * indices + phase_shift)
+        combined_wave += sine_wave
+        print(f"Added Wave {idx}: Amplitude={amplitude}, Frequency={frequency}, Phase Shift={phase_shift}")
+    
     if set_negatives_zero:
         combined_wave = np.maximum(combined_wave, 0)
-
-    print(f"Final Combined Wave Statistics:\nMin: {combined_wave.min()}, Max: {combined_wave.max()}, Mean: {combined_wave.mean()}")
+    
     return combined_wave
 
-# Main function for generating and plotting the data
-def main():
-    parser = argparse.ArgumentParser(description="Sunspot Data Extrapolator Using Sine Waves")
-    parser.add_argument('--predict-before', type=float, default=5.0,
-                        help="Percentage of time to predict before the observed data (default: 5%%)")
-    parser.add_argument('--predict-after', type=float, default=5.0,
-                        help="Percentage of time to predict after the observed data (default: 5%%)")
-    parser.add_argument('--data-file', type=str, required=True, help="Path to the sunspot data file")
-    parser.add_argument('--date-col', type=str, default="date", help="Name of the date column in the data")
-    parser.add_argument('--value-col', type=str, default="sunspot", help="Name of the value column in the data")
-    parser.add_argument('--moving-average', type=int, help="Apply a moving average filter to smooth the data")
-    parser.add_argument('--waves-dir', type=str, default="waves", help="Directory containing sine wave JSON files (default: 'waves')")
-    parser.add_argument('--set-negatives-zero', action='store_true', default=False,
-                        help="Set sine wave values below zero to zero (default: False)")
-    args = parser.parse_args()
+def plot_data(indices, data_values, combined_wave):
+    """
+    Plot the observed data and the combined sine wave.
 
-    # Close any existing plots to prevent overlap
-    plt.close('all')
-
-    # Load sunspot data
-    sunspot_data = load_data(args.data_file, date_col=args.date_col, value_col=args.value_col, moving_average=args.moving_average)
-    if sunspot_data is None:
-        print("No data loaded. Exiting.")
-        return
-
-    # Determine observed start and end dates
-    observed_start = sunspot_data.index.min()
-    observed_end = sunspot_data.index.max()
-    time_range_days = (observed_end - observed_start).days
-
-    print(f"Observed Data Start Date: {observed_start.date()}")
-    print(f"Observed Data End Date: {observed_end.date()}")
-    print(f"Time Range (days): {time_range_days}")
-
-    # Infer data frequency
-    data_freq = sunspot_data.index.inferred_freq
-    if data_freq is None:
-        # Calculate average time difference
-        if len(sunspot_data.index) > 1:
-            step_deltas = sunspot_data.index.to_series().diff().dropna()
-            avg_time_diff_days = step_deltas.dt.days.mean()
-            step_conversion_factor = avg_time_diff_days
-            print(f"Could not infer frequency. Calculated average time difference: {avg_time_diff_days:.2f} days.")
-            # Assuming monthly data if average is around 30 days
-            if 28 <= avg_time_diff_days <= 31:
-                data_freq = 'MS'  # Month Start frequency
-                print("Assuming monthly frequency ('MS').")
-                step_conversion_factor = 30  # Approximate days per month
-            else:
-                # Default to daily frequency
-                data_freq = 'D'
-                print("Defaulting to daily frequency ('D').")
-                step_conversion_factor = 1.0
-        else:
-            step_conversion_factor = 1.0
-            print("Only one data point present. Setting step_conversion_factor to 1.0.")
-    else:
-        print(f"Inferred data frequency: {data_freq}")
-        # Determine step_conversion_factor based on frequency
-        if 'M' in data_freq:
-            step_conversion_factor = 30  # Approximate days per month
-        elif 'D' in data_freq:
-            step_conversion_factor = 1.0
-        else:
-            # Add more frequency mappings as needed
-            step_conversion_factor = 1.0
-            print(f"Frequency '{data_freq}' not specifically handled. Setting step_conversion_factor to 1.0.")
-
-    # Calculate number of steps to predict before and after based on percentage
-    total_steps = len(sunspot_data)
-    predict_before_steps = int(total_steps * (args.predict_before / 100))
-    predict_after_steps = int(total_steps * (args.predict_after / 100))
-
-    print(f"Predicting {predict_before_steps} step(s) before the observed data.")
-    print(f"Predicting {predict_after_steps} step(s) after the observed data.")
-
-    # Define extended start and end dates using the inferred frequency
-    try:
-        extended_start_date = observed_start - pd.tseries.frequencies.to_offset(data_freq) * predict_before_steps
-        extended_end_date = observed_end + pd.tseries.frequencies.to_offset(data_freq) * predict_after_steps
-    except ValueError as e:
-        print(f"Error in date offset calculation: {e}")
-        return
-
-    print(f"Extended Start Date: {extended_start_date.date()}")
-    print(f"Extended End Date: {extended_end_date.date()}")
-
-    # Generate the full date range based on inferred frequency
-    full_date_range = pd.date_range(start=extended_start_date, end=extended_end_date, freq=data_freq)
-    print(f"Total Number of Points: {len(full_date_range)}")
-
-    # Create list of tuples (datetime, index)
-    # Index 0 corresponds to the first date in the observed data
-    # Each subsequent index increments by 1 per step (month)
-    date_index_tuples = [(dt, i) for i, dt in enumerate(full_date_range)]
-
-    # For debugging: Print a sample of date-index mapping
-    print("Sample Date-Index Mapping:")
-    for dt, idx in date_index_tuples[:5]:
-        print(f"Date: {dt.date()}, Index: {idx}")
-    print("...")
-
-    # Generate reconstructed data using the extended date range
-    reconstructed_data = load_and_combine_waves_with_indices(
-        date_index_tuples, 
-        args.waves_dir, 
-        set_negatives_zero=args.set_negatives_zero,
-        step_conversion_factor=step_conversion_factor
-    )
-    reconstructed_dates = [dt for dt, idx in date_index_tuples]
-
-    # Additional Debugging: Print reconstructed data statistics
-    print(f"Reconstructed Data Statistics:\nMin: {reconstructed_data.min()}, Max: {reconstructed_data.max()}, Mean: {reconstructed_data.mean()}")
-
-    # Save reconstructed data for external verification
-    np.save('reconstructed_data.npy', reconstructed_data)
-    print("Reconstructed data saved to 'reconstructed_data.npy'")
-
-    # Plotting
-    plt.figure(figsize=(12, 6))
-
-    # Plot Observed Data with Markers for Clarity
-    plt.plot(sunspot_data.index, sunspot_data.values, label="Observed Data", color="blue", marker='o')
-
+    Parameters:
+        indices (np.ndarray): Array of indices.
+        data_values (np.ndarray): Array of observed data values.
+        combined_wave (np.ndarray): Combined sine wave values.
+    """
+    plt.figure(figsize=(14, 7))
+    
+    # Plot Observed Data
+    plt.plot(indices, data_values, label='Observed Data', color='blue', marker='o', linestyle='-', markersize=4)
+    
     # Plot Combined Sine Waves
-    plt.plot(reconstructed_dates, reconstructed_data, label="Combined Sine Waves", color="orange")
-
-    # Annotate the Plot with Statistics
-    stats_text = (
-        f"Combined Wave Stats:\n"
-        f"Min: {reconstructed_data.min():.2f}\n"
-        f"Max: {reconstructed_data.max():.2f}\n"
-        f"Mean: {reconstructed_data.mean():.2f}"
-    )
-    plt.text(0.02, 0.95, stats_text, transform=plt.gca().transAxes,
-             fontsize=10, verticalalignment='top',
-             bbox=dict(boxstyle="round,pad=0.3", edgecolor="black", facecolor="white"))
-
-    plt.title(f"Sunspot Data from {extended_start_date.year} to {extended_end_date.year}")
-    plt.xlabel("Date")
-    plt.ylabel("Sunspot Number")
+    plt.plot(indices, combined_wave, label='Combined Sine Waves', color='red', linestyle='--')
+    
+    plt.title('Observed Data and Combined Sine Waves')
+    plt.xlabel('Index')
+    plt.ylabel('Value')
     plt.legend()
     plt.grid(True)
-
+    plt.tight_layout()
     plt.show()
 
-if __name__ == "__main__":
+def main():
+    parser = argparse.ArgumentParser(description='Extrapolator: Combine Sine Waves with Observed Data')
+    parser.add_argument('--data-file', type=str, required=True, help='Path to the observed data CSV file')
+    parser.add_argument('--waves-dir', type=str, default='waves', help='Directory containing sine wave JSON files (default: waves)')
+    parser.add_argument('--value-col', type=str, default='Value', help='Name of the column containing observed values (default: Value)')
+    parser.add_argument('--set-negatives-zero', action='store_true', help='Set negative sine wave values to zero')
+    
+    args = parser.parse_args()
+    
+    # Load Observed Data
+    indices, data_values = load_observed_data(args.data_file, value_col=args.value_col)
+    print(f"Loaded Observed Data: {len(indices)} data points.")
+    
+    # Load Sine Waves
+    sine_waves = load_sine_waves(args.waves_dir)
+    print(f"Loaded {len(sine_waves)} sine wave(s) from '{args.waves_dir}'.")
+    
+    # Generate Combined Sine Wave
+    combined_wave = generate_combined_sine_wave(sine_waves, indices, set_negatives_zero=args.set_negatives_zero)
+    print(f"Combined Wave Statistics:\nMin: {combined_wave.min():.2f}, Max: {combined_wave.max():.2f}, Mean: {combined_wave.mean():.2f}")
+    
+    # Plotting
+    plot_data(indices, data_values, combined_wave)
+
+if __name__ == '__main__':
     main()
