@@ -13,6 +13,9 @@ from sys import exit
 # Constants
 LOCAL_WORK_SIZE = 256  # Work group size for OpenCL, must be compatible with GPU
 
+# Global STEP_SIZES initialized as empty
+STEP_SIZES = {}
+
 # -------------------- Refinement Step Sizes Configuration -------------------- #
 
 REFINEMENT_STEP_SIZES_BASE = {
