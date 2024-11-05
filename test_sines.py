@@ -804,6 +804,4 @@ class TestExtrapolator(unittest.TestCase):
         np.testing.assert_array_almost_equal(combined_wave, expected_wave, decimal=5)
 
 if __name__ == "__main__":
-    # Configure logging to capture warnings during tests
-    logging.basicConfig(level=logging.WARNING)
     unittest.main()
