@@ -66,9 +66,9 @@ The project operates in two primary phases: **Brute-Force Search** and **Refinem
 The `sines.py` script processes time series data to identify sine waves that model the data accurately.
 
 **Example Usage**:
-TRIPLE_BACK_QUOTESbash
+```bash
 python3 sines.py --data-file sample_data/sunspots/SN_d_tot_V2.0.csv --date-col date --value-col sunspot --desired-step-size fast --desired-refinement-step-size fast --wave-count 5 --set-negatives-zero after_sum
-TRIPLE_BACK_QUOTES
+```
 
 #### Arguments
 - `--data-file`: Path to the input data file (JSON or CSV).
@@ -87,9 +87,9 @@ TRIPLE_BACK_QUOTES
 The `extrapolator.py` script reconstructs and extrapolates the data using generated sine waves.
 
 **Usage**:
-TRIPLE_BACK_QUOTESbash
+```bash
 python3 extrapolator.py --data-file sample_data/sunspots/SN_d_tot_V2.0.csv --date-col date --value-col sunspot
-TRIPLE_BACK_QUOTES
+```
 
 This command will load all sine wave parameters, combine them, and plot the reconstructed time series data alongside the actual data.
 
@@ -98,9 +98,9 @@ This command will load all sine wave parameters, combine them, and plot the reco
 The `test_OpenCL_support.py` script verifies OpenCL support and GPU functionality.
 
 **Usage**:
-TRIPLE_BACK_QUOTESbash
+```bash
 python3 test_OpenCL_support.py
-TRIPLE_BACK_QUOTES
+```
 
 Expected output includes details of available platforms and devices, as well as a sample calculation result.
 
@@ -109,9 +109,9 @@ Expected output includes details of available platforms and devices, as well as 
 The `tests.py` script contains a comprehensive suite of unit tests to validate various functionalities within the **Sines Project**.
 
 **Usage**:
-TRIPLE_BACK_QUOTESbash
+```bash
 python -m unittest tests.py
-TRIPLE_BACK_QUOTES
+```
 
 ### Sample Data Scripts
 
@@ -131,18 +131,18 @@ The `test_sines.py` script is a comprehensive suite of unit tests that validate 
 - **OpenCL Support**: Mocks and tests for OpenCL platform and device detection, ensuring compatibility with NVIDIA GPUs.
 
 Run the test suite with:
-TRIPLE_BACK_QUOTESbash
+```bash
 python -m unittest test_sines.py
-TRIPLE_BACK_QUOTES
+```
 
 ### Test Suite: `tests.py`
 
 The `tests.py` script extends the testing framework with additional test cases, ensuring comprehensive coverage of all functionalities.
 
 Run the test suite with:
-TRIPLE_BACK_QUOTESbash
+```bash
 python -m unittest tests.py
-TRIPLE_BACK_QUOTES
+```
 
 ## Performance
 
@@ -155,10 +155,10 @@ The **Sines Project** has been optimized for GPU resources, enhancing processing
 - **GPU**: Nvidia Quadro 6000
 - **OS**: Ubuntu 20.04.6 LTS
 - **Dataset Examples**:
-  - **Solar Sunspot Data**: 75,546 data points with a maximum amplitude of ~375. Each brute-force search phase takes approximately 8-10 seconds per wave discovery.
-  - **M4 Test Data**: 470 data points with a maximum amplitude nearing 60,000. Due to the increased search space, discovering sine waves for such datasets takes significantly longer.
+  - **Solar Sunspot Data**: 75,546 data points with a maximum amplitude of ~375. Each brute-force search phase takes approximately one minute per wave discovery.
+  - **M4 Test Data**: 470 data points with a maximum amplitude nearing 60,000. Each wave discovery with this data takes about one second.
 
-**Note**: Datasets with higher maximum amplitudes increase the search space, resulting in longer processing times during sine wave discovery. Users should expect extended runtimes when working with such datasets.
+**Note**: Datasets with higher maximum amplitudes increase the search space, resulting in longer processing times during sine wave discovery. However, a smaller number of data points decreases the number of computations needed to evaluate each sine wave within the search space.
 
 ## Known Limitations
 
