@@ -494,11 +494,11 @@ def main():
         # Dynamic step size selection based on average difference
         if args.progressive_step_sizes:
             difference = np.mean(np.abs(observed_data - combined_wave))
-            if difference > 1000:
+            if difference > 150:
                 step_size = 'fast'
-            elif difference > 200:
+            elif difference > 50:
                 step_size = 'normal'
-            elif difference > 100:
+            elif difference > 10:
                 step_size = 'fine'
             else:
                 step_size = 'ultrafine'
