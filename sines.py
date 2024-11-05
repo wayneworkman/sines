@@ -17,22 +17,22 @@ LOCAL_WORK_SIZE = 256  # Work group size for OpenCL, must be compatible with GPU
 
 STEP_SIZES = {
     'ultrafine': {
-        'amplitude': np.arange(1, 20000, 1),
+        'amplitude': np.arange(1, 200, 1),
         'frequency': np.arange(0.00001, 0.001, 0.0000075),
         'phase_shift': np.arange(0, 2 * np.pi, 0.025)
     },
     'fine': {
-        'amplitude': np.arange(1, 20000, 2),
+        'amplitude': np.arange(1, 200, 2),
         'frequency': np.arange(0.00001, 0.001, 0.000015),
         'phase_shift': np.arange(0, 2 * np.pi, 0.05)
     },
     'normal': {
-        'amplitude': np.arange(1, 20000, 4),
+        'amplitude': np.arange(1, 200, 4),
         'frequency': np.arange(0.00001, 0.001, 0.00003),
         'phase_shift': np.arange(0, 2 * np.pi, 0.15)
     },
     'fast': {
-        'amplitude': np.arange(1, 20000, 8),
+        'amplitude': np.arange(1, 200, 8),
         'frequency': np.arange(0.00001, 0.001, 0.00006),
         'phase_shift': np.arange(0, 2 * np.pi, 0.3)
     }
@@ -465,11 +465,11 @@ def main():
         # Dynamic step size selection based on average difference
         if args.progressive_step_sizes:
             difference = np.mean(np.abs(observed_data - combined_wave))
-            if difference > 150:
+            if difference > 40:
                 step_size = 'fast'
-            elif difference > 50:
-                step_size = 'normal'
             elif difference > 10:
+                step_size = 'normal'
+            elif difference > 5:
                 step_size = 'fine'
             else:
                 step_size = 'ultrafine'

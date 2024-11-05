@@ -402,7 +402,8 @@ class TestExtrapolator(unittest.TestCase):
         self.assertDictEqual(sine_waves[0], wave_params1)
         self.assertDictEqual(sine_waves[1], wave_params2)
 
-    def test_load_sine_waves_invalid_json(self):
+    @patch('logging.warning')
+    def test_load_sine_waves_invalid_json(self, mock_logging_warning):
         # Create an invalid sine wave JSON file
         invalid_wave_file = os.path.join(self.test_dir, "wave_1.json")
         with open(invalid_wave_file, "w") as f:
@@ -414,14 +415,16 @@ class TestExtrapolator(unittest.TestCase):
         with open(valid_wave_file, "w") as f:
             json.dump(wave_params, f)
         
-        # Capture printed warnings
-        with patch('builtins.print') as mock_print:
-            sine_waves = load_sine_waves(self.test_dir)
-            self.assertEqual(len(sine_waves), 1)
-            self.assertDictEqual(sine_waves[0], wave_params)
-            mock_print.assert_any_call("Warning: Wave file 'wave_1.json' is not a valid JSON. Skipping.")
+        # Run the function
+        sine_waves = load_sine_waves(self.test_dir)
+        
+        # Assertions
+        self.assertEqual(len(sine_waves), 1)
+        self.assertDictEqual(sine_waves[0], wave_params)
+        mock_logging_warning.assert_any_call("Wave file 'wave_1.json' is not a valid JSON. Skipping.")
 
-    def test_load_sine_waves_missing_parameters(self):
+    @patch('logging.warning')
+    def test_load_sine_waves_missing_parameters(self, mock_logging_warning):
         # Create a sine wave JSON file missing required parameters
         incomplete_wave_file = os.path.join(self.test_dir, "wave_1.json")
         incomplete_wave = {"amplitude": 1, "frequency": 1}  # Missing 'phase_shift'
@@ -434,12 +437,13 @@ class TestExtrapolator(unittest.TestCase):
         with open(valid_wave_file, "w") as f:
             json.dump(wave_params, f)
         
-        # Capture printed warnings
-        with patch('builtins.print') as mock_print:
-            sine_waves = load_sine_waves(self.test_dir)
-            self.assertEqual(len(sine_waves), 1)
-            self.assertDictEqual(sine_waves[0], wave_params)
-            mock_print.assert_any_call("Warning: Could not load wave file 'wave_1.json': Wave file 'wave_1.json' is missing required parameters.. Skipping.")
+        # Run the function
+        sine_waves = load_sine_waves(self.test_dir)
+        
+        # Assertions
+        self.assertEqual(len(sine_waves), 1)
+        self.assertDictEqual(sine_waves[0], wave_params)
+        mock_logging_warning.assert_any_call("Could not load wave file 'wave_1.json': Wave file 'wave_1.json' is missing required parameters.. Skipping.")
 
     def test_calculate_average_timespan(self):
         # Test with sorted dates
@@ -525,7 +529,7 @@ class TestExtrapolator(unittest.TestCase):
 
     def test_plot_data(self):
         # Test plotting function (mock plt.show)
-        dates = pd.to_datetime(["2020-01-01", "2020-01-02", "2020-01-03"])
+        dates = pd.Series(pd.to_datetime(["2020-01-01", "2020-01-02", "2020-01-03"]))
         indices = np.arange(3)
         data_values = np.array([100, 200, 150])
         combined_wave = np.array([90, 210, 160])
@@ -533,6 +537,7 @@ class TestExtrapolator(unittest.TestCase):
         with patch('extrapolator.plt.show') as mock_show:
             plot_data(dates, indices, data_values, combined_wave)
             mock_show.assert_called_once()
+
 
     def test_generate_combined_sine_wave_with_set_negatives_zero_after_sum(self):
         # Create sine waves where some sums are negative
