@@ -71,7 +71,7 @@ python3 sines.py --data-file sample_data/sunspots/SN_d_tot_V2.0.csv --date-col d
 ```
 
 #### Arguments
-- `--data-file`: Path to the input data file (JSON or CSV).
+- `--data-file`: **(Required)** Path to the input data file (JSON or CSV).
 - `--date-col`: Name of the date column in the input data (default: `date`).
 - `--value-col`: Name of the value column in the input data (default: `value`).
 - `--moving-average`: Optional window size for smoothing data with a moving average.
@@ -79,70 +79,68 @@ python3 sines.py --data-file sample_data/sunspots/SN_d_tot_V2.0.csv --date-col d
 - `--log-dir`: Directory to store log files (default: `logs`).
 - `--desired-step-size`: Step size mode for brute-force search (`fine`, `normal`, `fast`; default: `fast`).
 - `--desired-refinement-step-size`: Step size mode for refinement phase (`fine`, `normal`, `fast`, `skip`; default: `skip`).
-- `--no-plot`: Disable real-time plotting.
+- `--progressive-step-sizes`: **(Flag)** Dynamically adjust step sizes based on observed and combined wave differences (default: enabled).
+- `--set-negatives-zero`: How to handle negative sine wave values (`after_sum`, `per_wave`; default: `after_sum`).
+- `--no-plot`: **(Flag)** Disable real-time plotting.
 - `--wave-count`: Specify the maximum number of waves to discover before the script stops. If set to `0`, the script will continue indefinitely (default: `50`).
+
 
 ### Extrapolating Data (`extrapolator.py`)
 
 The `extrapolator.py` script reconstructs and extrapolates the data using generated sine waves.
 
-**Usage**:
+**Example Usage**:
 ```bash
 python3 extrapolator.py --data-file sample_data/sunspots/SN_d_tot_V2.0.csv --date-col date --value-col sunspot
 ```
 
-This command will load all sine wave parameters, combine them, and plot the reconstructed time series data alongside the actual data.
+#### Arguments
+- `--data-file`: **(Required)** Path to the observed data CSV file.
+- `--waves-dir`: Directory containing sine wave JSON files (default: `waves`).
+- `--date-col`: Name of the column containing date information (default: `Timestamp`).
+- `--value-col`: Name of the column containing observed values (default: `Value`).
+- `--set-negatives-zero`: How to handle negative sine wave values (`after_sum`, `per_wave`; default: `after_sum`).
+- `--predict-before`: Percentage of data points to predict before the observed data (default: `5.0`).
+- `--predict-after`: Percentage of data points to predict after the observed data (default: `5.0`).
+- `--moving-average`: Apply a moving average filter to smooth the data (default: `None`).
 
 ### Testing OpenCL Support (`test_OpenCL_support.py`)
 
 The `test_OpenCL_support.py` script verifies OpenCL support and GPU functionality.
 
-**Usage**:
+**Example Usage**:
 ```bash
 python3 test_OpenCL_support.py
 ```
 
-Expected output includes details of available platforms and devices, as well as a sample calculation result.
+**Description**:
+This script performs the following actions:
+1. Lists all available OpenCL platforms and devices.
+2. Executes a simple vector addition on the GPU to confirm OpenCL functionality.
+3. Outputs the results of the vector addition to verify correctness.
+
+**Expected Output**:
+- Details of available OpenCL platforms and devices.
+- Confirmation of successful vector addition, displaying input vectors and the resulting vector.
+- A success message indicating that the OpenCL test was completed successfully.
 
 ### Running Unit Tests (`tests.py`)
 
 The `tests.py` script contains a comprehensive suite of unit tests to validate various functionalities within the **Sines Project**.
 
-**Usage**:
+**Example Usage**:
 ```bash
-python -m unittest tests.py
+python3 tests.py
 ```
 
-### Sample Data Scripts
-
-The `sample_data` directory contains scripts designed to pull, update, or generate test data for the **Sines Project**. These scripts have their own README files, which provide detailed instructions on their usage and functionalities.
-
-## Testing
-
-### Test Script: `test_sines.py`
-
-The `test_sines.py` script is a comprehensive suite of unit tests that validate various functionalities within the **Sines Project**. It tests key components such as sine wave generation, data loading, wave parameter refinement, and OpenCL support for GPU acceleration.
-
-**Highlights of the Test Cases**:
-- **Sine Wave Generation**: Tests basic and edge cases for sine wave generation.
-- **Data Loading**: Validates data loading from CSV and JSON, handling missing or malformed data, and testing moving averages.
-- **Wave Parameter Refinement**: Ensures that the refinement function can handle edge cases, such as empty candidate lists.
-- **Integration Tests**: Simulates full integration, from loading data to searching and refining wave parameters.
-- **OpenCL Support**: Mocks and tests for OpenCL platform and device detection, ensuring compatibility with NVIDIA GPUs.
-
-Run the test suite with:
-```bash
-python -m unittest test_sines.py
-```
-
-### Test Suite: `tests.py`
-
-The `tests.py` script extends the testing framework with additional test cases, ensuring comprehensive coverage of all functionalities.
-
-Run the test suite with:
-```bash
-python -m unittest tests.py
-```
+**Description**:
+This test suite covers:
+- Sine wave generation, including edge cases.
+- Data loading from CSV and JSON files, including handling of malformed data.
+- Wave parameter refinement processes.
+- OpenCL platform and device detection.
+- Integration tests simulating full workflows.
+- Performance tests with varying dataset sizes and parameters.
 
 ## Performance
 
@@ -154,19 +152,37 @@ The **Sines Project** has been optimized for GPU resources, enhancing processing
 - **RAM**: 16 GB
 - **GPU**: Nvidia Quadro 6000
 - **OS**: Ubuntu 20.04.6 LTS
-- **Dataset Examples**:
-  - **Solar Sunspot Data**: 75,546 data points with a maximum amplitude of ~375. Each brute-force search phase takes approximately one minute per wave discovery.
-  - **M4 Test Data**: 470 data points with a maximum amplitude nearing 60,000. Each wave discovery with this data takes about one second.
 
-**Note**: Datasets with higher maximum amplitudes increase the search space, resulting in longer processing times during sine wave discovery. However, a smaller number of data points decreases the number of computations needed to evaluate each sine wave within the search space.
+**Dataset Examples**:
+
+- **Solar Sunspot Data**:
+  - **Data Points**: 75,546
+  - **Maximum Amplitude**: ~375
+  - **Performance**: Each brute-force search phase takes approximately one minute per wave discovery.
+
+- **M4 Test Data**:
+  - **Data Points**: 470
+  - **Maximum Amplitude**: ~60,000
+  - **Performance**: Each brute-force search phase takes about one second.
+
+**Notes**:
+- **High Amplitude Impact**: Datasets with higher maximum amplitudes expand the search space, leading to longer processing times during sine wave discovery.
+- **Data Point Volume**: Larger numbers of data points increase computational load.
+- **Optimization Tips**:
+  - Utilize `--progressive-step-sizes` to dynamically adjust step sizes, potentially reducing search times.
+  - Consider skipping the refinement phase with `--desired-refinement-step-size skip` for faster, albeit less precise, results.
+  - Utilize GPU acceleration effectively by ensuring optimal OpenCL setup and driver configurations.
 
 ## Known Limitations
 
 - **Date Range**: The date range for extrapolated data is constrained by the datetime library and Pandas limitations:
   - **Start Date**: 1677-09-22
   - **End Date**: 2262-04-10
-- **Date-Free Sines Processing**: The `sines.py` script generates sine waves based on data indices, without a date context. Thus, the date range limitation within `extrapolator.py` is not present within `sines.py`.
+- **Date approximation**: Because `sines.py` and `extrapolator.py` both use data index rather than date to calculate data values for sine waves, the dates displayed within extrapolator are a very close aproximation but not exactly correct.
 - **Performance on Large Datasets**: High-amplitude datasets with extensive data points significantly increase processing times due to larger search spaces.
+- **Step Size Configuration**: Improper step size configurations can lead to suboptimal sine wave discoveries or excessively long computation times.
+- **Dependency on GPU**: Optimal performance relies on GPU availability and proper OpenCL setup. Systems without compatible GPUs may experience degraded performance.
+
 
 ## Logging
 
@@ -174,17 +190,40 @@ Both `sines.py` and `extrapolator.py` generate detailed logs.
 
 - **Log Directory**: Defined by `--log-dir` in `sines.py`.
 - **Log Contents**:
-  - Progress updates
-  - Fitness scores
-  - Parameter selections
-  - Warnings and error messages
+  - **Progress Updates**: Percentage completion of brute-force search phases.
+  - **Fitness Scores**: Tracking the best and current fitness scores during searches.
+  - **Parameter Selections**: Details of sine wave parameters being evaluated.
+  - **Warnings and Error Messages**: Notifications about data loading issues, OpenCL errors, and other runtime warnings.
 
-Logs are instrumental for monitoring the process and diagnosing issues during wave discovery and data extrapolation.
+Logs are instrumental for monitoring the process and diagnosing issues during wave discovery and data extrapolation. They are especially useful for long-running processes or when running scripts in non-interactive environments.
 
 ## Contributing
 
-Contributions are welcome! Please open an issue or submit a pull request.
+Contributions are welcome! Please follow these steps to contribute to the **Sines Project**:
 
----
+1. **Fork the Repository**: Click the "Fork" button at the top-right corner of the repository page.
+1. **Clone Your Fork**:  
+   ```bash
+   git clone https://github.com/wayneworkman/sines.git
+   ```
+1. **Create a New Branch**:  
+   ```bash
+   git checkout -b feature/your-feature-name
+   ```
+1. **Make Your Changes**: Implement your feature or fix.
+1. **Execute, update, and add to the tests**:
+   ```bash
+   python3 tests.py
+   ```
+1. **Commit Your Changes**:  
+   ```bash
+   git commit -m "Add feature: your feature description"
+   ```
+1. **Push to Your Fork**:  
+   ```bash
+   git push origin feature/your-feature-name
+   ```
+1. **Open a Pull Request**: Navigate to the original repository and click "New Pull Request."
+
 
 **Disclaimer**: This project is provided "as is" without warranty. Use at your own risk.
