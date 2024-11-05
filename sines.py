@@ -13,51 +13,26 @@ from sys import exit
 # Constants
 LOCAL_WORK_SIZE = 256  # Work group size for OpenCL, must be compatible with GPU
 
-# Configuration constants for step sizes
+# -------------------- Refinement Step Sizes Configuration -------------------- #
 
-STEP_SIZES = {
+REFINEMENT_STEP_SIZES_BASE = {
     'ultrafine': {
-        'amplitude': np.arange(1, 200, 1),
-        'frequency': np.arange(0.00001, 0.001, 0.0000075),
-        'phase_shift': np.arange(0, 2 * np.pi, 0.025)
-    },
-    'fine': {
-        'amplitude': np.arange(1, 200, 2),
-        'frequency': np.arange(0.00001, 0.001, 0.000015),
-        'phase_shift': np.arange(0, 2 * np.pi, 0.05)
-    },
-    'normal': {
-        'amplitude': np.arange(1, 200, 4),
-        'frequency': np.arange(0.00001, 0.001, 0.00003),
-        'phase_shift': np.arange(0, 2 * np.pi, 0.15)
-    },
-    'fast': {
-        'amplitude': np.arange(1, 200, 8),
-        'frequency': np.arange(0.00001, 0.001, 0.00006),
-        'phase_shift': np.arange(0, 2 * np.pi, 0.3)
-    }
-}
-
-# Refinement step sizes configuration with smaller steps
-
-REFINEMENT_STEP_SIZES = {
-    'ultrafine': {
-        'amplitude_step': 0.01,
+        'amplitude_step_ratio': 0.01,
         'frequency_step': 0.00000005,
         'phase_shift_step': 0.0005
     },
     'fine': {
-        'amplitude_step': 0.02,
+        'amplitude_step_ratio': 0.02,
         'frequency_step': 0.0000001,
         'phase_shift_step': 0.001
     },
     'normal': {
-        'amplitude_step': 0.05,
+        'amplitude_step_ratio': 0.05,
         'frequency_step': 0.0000005,
         'phase_shift_step': 0.002
     },
     'fast': {
-        'amplitude_step': 0.1,
+        'amplitude_step_ratio': 0.1,
         'frequency_step': 0.000001,
         'phase_shift_step': 0.005
     }
@@ -65,7 +40,7 @@ REFINEMENT_STEP_SIZES = {
 
 # -------------------- Refinement Phase Implementation -------------------- #
 
-def refine_candidates(top_candidates, observed_data, combined_wave, context, queue, ax, wave_count, desired_refinement_step_size='fast', set_negatives_zero=False):
+def refine_candidates(top_candidates, observed_data, combined_wave, context, queue, ax, wave_count, desired_refinement_step_size='fast', set_negatives_zero=False, max_observed=1.0):
     logging.info(f"Wave {wave_count}: Starting refinement phase.")
 
     refined_best_score = np.inf
@@ -73,6 +48,10 @@ def refine_candidates(top_candidates, observed_data, combined_wave, context, que
 
     # Additional parameter for kernel to control negative value handling
     non_negative = 1 if set_negatives_zero else 0
+
+    amplitude_step = REFINEMENT_STEP_SIZES_BASE[desired_refinement_step_size]["amplitude_step_ratio"] * max_observed
+    frequency_step = REFINEMENT_STEP_SIZES_BASE[desired_refinement_step_size]["frequency_step"]
+    phase_shift_step = REFINEMENT_STEP_SIZES_BASE[desired_refinement_step_size]["phase_shift_step"]
 
     kernel_code = """
     __kernel void calculate_fitness(
@@ -106,12 +85,8 @@ def refine_candidates(top_candidates, observed_data, combined_wave, context, que
     combined_buf = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=combined_wave)
 
     for candidate_idx, (params, _) in enumerate(top_candidates):
-        amplitude_step = REFINEMENT_STEP_SIZES[desired_refinement_step_size]["amplitude_step"]
-        frequency_step = REFINEMENT_STEP_SIZES[desired_refinement_step_size]["frequency_step"]
-        phase_shift_step = REFINEMENT_STEP_SIZES[desired_refinement_step_size]["phase_shift_step"]
-
-        amplitude_min = max(params["amplitude"] - 0.5, 0.1)
-        amplitude_max = params["amplitude"] + 0.5
+        amplitude_min = max(params["amplitude"] - 0.5 * max_observed, 0.1)
+        amplitude_max = params["amplitude"] + 0.5 * max_observed
         amplitude_range = np.arange(amplitude_min, amplitude_max, amplitude_step)
 
         frequency_min = max(params["frequency"] - 0.000005, 0.000001)
@@ -202,7 +177,6 @@ def refine_candidates(top_candidates, observed_data, combined_wave, context, que
                     plt.pause(0.01)
 
             if chunk_idx % 10 == 0:
-                elapsed_time = chunk_idx * chunk_size / (total_combinations / 100)
                 progress = (chunk_idx + 1) / num_chunks * 100
                 logging.info(f"Wave {wave_count}: Refinement Progress: {progress:.2f}%, Best Score So Far: {refined_best_score}")
 
@@ -269,7 +243,7 @@ def load_previous_waves(num_points, output_dir, set_negatives_zero=False):
                 logging.warning(f"Error loading wave file {filename}. Skipping corrupted file.")
     return combined_wave
 
-def brute_force_sine_wave_search(observed_data, combined_wave, context, queue, ax, wave_count, desired_step_size='fast', set_negatives_zero=False):
+def brute_force_sine_wave_search(observed_data, combined_wave, context, queue, ax, wave_count, desired_step_size='fast', set_negatives_zero=False, max_observed=1.0):
     amplitude_range = STEP_SIZES[desired_step_size]["amplitude"]
     frequency_range = STEP_SIZES[desired_step_size]["frequency"]
     phase_shift_range = STEP_SIZES[desired_step_size]["phase_shift"]
@@ -394,7 +368,6 @@ def brute_force_sine_wave_search(observed_data, combined_wave, context, queue, a
                 plt.pause(0.01)
 
         if chunk_idx % 10 == 0:
-            elapsed_time = chunk_idx * chunk_size / (total_combinations / 100)
             progress = (chunk_idx + 1) / num_chunks * 100
             logging.info(f"Wave {wave_count}: Progress: {progress:.2f}%, Best Score So Far: {best_score_so_far}")
 
@@ -442,15 +415,36 @@ def main():
     if not os.path.exists(args.waves_dir):
         os.makedirs(args.waves_dir)
 
-    # Handle 'set_negatives_zero' correctly
-    if args.set_negatives_zero == 'per_wave':
-        # Set negatives per wave during generation
-        combined_wave = load_previous_waves(len(observed_data), args.waves_dir, set_negatives_zero=True)
-    elif args.set_negatives_zero == 'after_sum':
-        # Load all waves without per-wave zeroing
-        combined_wave = load_previous_waves(len(observed_data), args.waves_dir, set_negatives_zero=False)
-        # Apply sum-level zeroing
-        combined_wave = np.maximum(combined_wave, 0)
+    max_observed = np.max(observed_data) if len(observed_data) > 0 else 1.0
+    scaling_factor = 1.5
+    amplitude_upper_limit = max_observed * scaling_factor
+
+    # Dynamically define STEP_SIZES based on max_observed
+    global STEP_SIZES
+    STEP_SIZES = {
+        'ultrafine': {
+            'amplitude': np.arange(0.1, amplitude_upper_limit, 0.01 * max_observed),
+            'frequency': np.arange(0.00001, 0.001, 0.0000075),
+            'phase_shift': np.arange(0, 2 * np.pi, 0.025)
+        },
+        'fine': {
+            'amplitude': np.arange(0.1, amplitude_upper_limit, 0.02 * max_observed),
+            'frequency': np.arange(0.00001, 0.001, 0.000015),
+            'phase_shift': np.arange(0, 2 * np.pi, 0.05)
+        },
+        'normal': {
+            'amplitude': np.arange(0.1, amplitude_upper_limit, 0.05 * max_observed),
+            'frequency': np.arange(0.00001, 0.001, 0.00003),
+            'phase_shift': np.arange(0, 2 * np.pi, 0.15)
+        },
+        'fast': {
+            'amplitude': np.arange(0.1, amplitude_upper_limit, 0.1 * max_observed),
+            'frequency': np.arange(0.00001, 0.001, 0.00006),
+            'phase_shift': np.arange(0, 2 * np.pi, 0.3)
+        }
+    }
+
+    combined_wave = load_previous_waves(len(observed_data), args.waves_dir, set_negatives_zero=(args.set_negatives_zero == 'per_wave'))
 
     # Initialize plotting if not disabled
     if not args.no_plot:
@@ -487,14 +481,16 @@ def main():
         top_candidates = brute_force_sine_wave_search(
             observed_data, combined_wave, context, queue, ax, wave_count,
             desired_step_size=step_size,
-            set_negatives_zero=(args.set_negatives_zero == 'per_wave')  # Correctly set per_wave or not
+            set_negatives_zero=(args.set_negatives_zero == 'per_wave'),
+            max_observed=max_observed
         )
 
         if args.desired_refinement_step_size.lower() != 'skip':
             best_params, best_score = refine_candidates(
                 top_candidates, observed_data, combined_wave, context, queue, ax, wave_count,
                 desired_refinement_step_size=args.desired_refinement_step_size,
-                set_negatives_zero=(args.set_negatives_zero == 'per_wave')  # Correctly set per_wave or not
+                set_negatives_zero=(args.set_negatives_zero == 'per_wave'),
+                max_observed=max_observed
             )
         else:
             best_params, best_score = top_candidates[0][0], top_candidates[0][1]
