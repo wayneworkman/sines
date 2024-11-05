@@ -237,15 +237,15 @@ def load_data(file_path, date_col="date", value_col="value", moving_average=None
     except (ValueError, json.JSONDecodeError):
         df = pd.read_csv(file_path, parse_dates=[date_col])
         logging.info(f"Loaded data from CSV file: {file_path}")
-    
+
     df = df.sort_values(by=date_col)
-    
+
     if value_col not in df.columns:
         raise ValueError(f"Value column '{value_col}' not found in data.")
-    
+
     if moving_average:
         df[value_col] = df[value_col].rolling(window=moving_average, min_periods=1).mean()
-    
+
     return df[value_col].values.astype(np.float32)
 
 def generate_sine_wave(params, num_points, set_negatives_zero=False):
@@ -442,7 +442,15 @@ def main():
     if not os.path.exists(args.waves_dir):
         os.makedirs(args.waves_dir)
 
-    combined_wave = load_previous_waves(len(observed_data), args.waves_dir, set_negatives_zero=(args.set_negatives_zero == 'after_sum'))
+    # Handle 'set_negatives_zero' correctly
+    if args.set_negatives_zero == 'per_wave':
+        # Set negatives per wave during generation
+        combined_wave = load_previous_waves(len(observed_data), args.waves_dir, set_negatives_zero=True)
+    elif args.set_negatives_zero == 'after_sum':
+        # Load all waves without per-wave zeroing
+        combined_wave = load_previous_waves(len(observed_data), args.waves_dir, set_negatives_zero=False)
+        # Apply sum-level zeroing
+        combined_wave = np.maximum(combined_wave, 0)
 
     # Initialize plotting if not disabled
     if not args.no_plot:
@@ -479,14 +487,14 @@ def main():
         top_candidates = brute_force_sine_wave_search(
             observed_data, combined_wave, context, queue, ax, wave_count,
             desired_step_size=step_size,
-            set_negatives_zero=(args.set_negatives_zero == 'after_sum')
+            set_negatives_zero=(args.set_negatives_zero == 'per_wave')  # Correctly set per_wave or not
         )
 
         if args.desired_refinement_step_size.lower() != 'skip':
             best_params, best_score = refine_candidates(
                 top_candidates, observed_data, combined_wave, context, queue, ax, wave_count,
                 desired_refinement_step_size=args.desired_refinement_step_size,
-                set_negatives_zero=(args.set_negatives_zero == 'after_sum')
+                set_negatives_zero=(args.set_negatives_zero == 'per_wave')  # Correctly set per_wave or not
             )
         else:
             best_params, best_score = top_candidates[0][0], top_candidates[0][1]
@@ -503,8 +511,10 @@ def main():
                 # If handling per_wave, simply add the new_wave
                 combined_wave += new_wave
             elif args.set_negatives_zero == 'after_sum':
-                # Reload all waves and recompute the combined_wave
-                combined_wave = load_previous_waves(len(observed_data), args.waves_dir, set_negatives_zero=True)
+                # Reload all waves without per-wave zeroing
+                combined_wave = load_previous_waves(len(observed_data), args.waves_dir, set_negatives_zero=False)
+                # Apply sum-level zeroing
+                combined_wave = np.maximum(combined_wave, 0)
 
             if not args.no_plot and ax is not None:
                 ax.clear()

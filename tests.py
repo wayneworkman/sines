@@ -538,7 +538,6 @@ class TestExtrapolator(unittest.TestCase):
             plot_data(dates, indices, data_values, combined_wave)
             mock_show.assert_called_once()
 
-
     def test_generate_combined_sine_wave_with_set_negatives_zero_after_sum(self):
         # Create sine waves where some sums are negative
         sine_waves = [
