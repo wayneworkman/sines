@@ -31,10 +31,11 @@ def load_observed_data(file_path, date_col='Timestamp', value_col='Value'):
         return dates, indices, data_values
     except FileNotFoundError:
         print(f"Error: Data file '{file_path}' not found.")
-        exit(1)
+        raise  # Re-raise the exception instead of exiting
     except Exception as e:
         print(f"Error loading data: {e}")
-        exit(1)
+        raise  # Re-raise the exception instead of exiting
+
 
 def load_sine_waves(waves_dir):
     """
@@ -88,18 +89,21 @@ def calculate_average_timespan(dates):
     print(f"Average timespan between data points: {avg_timespan:.2f} days.")
     return avg_timespan
 
-def generate_combined_sine_wave(sine_waves, indices, set_negatives_zero=False):
+def generate_combined_sine_wave(sine_waves, indices, set_negatives_zero='after_sum'):
     """
     Generate and combine multiple sine waves based on their parameters.
 
     Parameters:
         sine_waves (list): List of dictionaries with sine wave parameters.
         indices (np.ndarray): Array of indices.
-        set_negatives_zero (bool): If True, set negative sine values to zero per wave or after sum.
+        set_negatives_zero (str): 'after_sum' or 'per_wave' to determine negative handling.
 
     Returns:
         combined_wave (np.ndarray): Combined sine wave values.
     """
+    if set_negatives_zero not in ['after_sum', 'per_wave']:
+        raise ValueError("set_negatives_zero must be either 'after_sum' or 'per_wave'")
+
     combined_wave = np.zeros_like(indices, dtype=np.float64)
     for idx, wave in enumerate(sine_waves, start=1):
         amplitude = wave['amplitude']
