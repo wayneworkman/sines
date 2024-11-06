@@ -403,7 +403,7 @@ def main():
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s",
                         handlers=[logging.FileHandler(log_filename), logging.StreamHandler()])
     
-    logging.info("Sunspot Prediction Model Starting")
+    logging.info("Sines is Starting")
 
     context, queue = setup_opencl()
     observed_data = load_data(

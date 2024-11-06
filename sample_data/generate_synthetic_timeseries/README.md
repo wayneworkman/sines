@@ -1,7 +1,7 @@
 
 # Generate Sample Time Series Data
 
-This utility script generates synthetic time series data based on a combination of sine waves and saves it as a CSV file. The generated data can be used as input for `sines.py`, enabling testing with custom time series data in place of actual sunspot data.
+This utility script generates synthetic time series data based on a combination of sine waves and saves it as a CSV file. The generated data can be used as input for `sines.py`, enabling testing with custom time series data in place of actual data.
 
 ## Features
 - Generates time series data by combining multiple sine waves with customizable parameters.
@@ -66,7 +66,7 @@ date,value
 ```
 
 ## Notes
-- This utility is designed to produce synthetic data for testing purposes and is not based on actual sunspot or other observational data.
+- This utility is designed to produce synthetic data for testing purposes and is not based on actual or other observational data.
 - The script can be adapted to generate various types of time series data by adjusting the parameters.
 
 ## License
