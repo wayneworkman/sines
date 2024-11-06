@@ -316,7 +316,7 @@ def load_previous_waves(num_points, output_dir, set_negatives_zero=False):
                 logging.warning(f"Error loading wave file {filename}. Skipping corrupted file.")
     return combined_wave
 
-def brute_force_sine_wave_search(observed_data, combined_wave, context, queue, ax, wave_count, desired_step_size='fast', set_negatives_zero=False, max_observed=1.0, max_work_group_size=LOCAL_WORK_SIZE, max_mem_alloc_size=134217728):
+def brute_force_sine_wave_search(observed_data, combined_wave, context, queue, ax, wave_count, desired_step_size='fast', set_negatives_zero=False, max_observed=1.0, max_work_group_size=LOCAL_WORK_SIZE, max_mem_alloc_size=134217728, num_top=5):
     amplitude_range = STEP_SIZES[desired_step_size]["amplitude"]
     frequency_range = STEP_SIZES[desired_step_size]["frequency"]
     phase_shift_range = STEP_SIZES[desired_step_size]["phase_shift"]
@@ -393,7 +393,7 @@ def brute_force_sine_wave_search(observed_data, combined_wave, context, queue, a
         cl.enqueue_copy(queue, scores_chunk, scores_buf)
         queue.finish()
 
-        num_top = 20
+        # Select top `num_top` candidates from the current chunk
         indices = np.argsort(scores_chunk)[:num_top]
         for idx in indices:
             params = {
@@ -406,21 +406,23 @@ def brute_force_sine_wave_search(observed_data, combined_wave, context, queue, a
             if score < best_score_so_far:
                 best_score_so_far = score
 
+        # Keep only the top `num_top` candidates overall
         top_candidates = sorted(top_candidates, key=lambda x: x[1])[:num_top]
 
         if ax is not None:
             if chunk_idx % 5 == 0 or chunk_idx == num_chunks - 1:
-                best_params = top_candidates[0][0]
-                sine_wave = generate_sine_wave(best_params, len(observed_data), set_negatives_zero=(set_negatives_zero == 'per_wave'))
-                combined_plus_sine = combined_wave + sine_wave
-                if set_negatives_zero == 'after_sum':
-                    combined_plus_sine = np.maximum(combined_plus_sine, 0)
-                ax.clear()
-                ax.plot(observed_data, label="Observed Data", color="blue")
-                ax.plot(combined_plus_sine, label="Combined Sine Waves", color="orange")
-                ax.set_title(f"Real-Time Fitting Progress - Wave {wave_count}")
-                ax.legend()
-                plt.pause(0.01)
+                if top_candidates:
+                    best_params = top_candidates[0][0]
+                    sine_wave = generate_sine_wave(best_params, len(observed_data), set_negatives_zero=(set_negatives_zero == 'per_wave'))
+                    combined_plus_sine = combined_wave + sine_wave
+                    if set_negatives_zero == 'after_sum':
+                        combined_plus_sine = np.maximum(combined_plus_sine, 0)
+                    ax.clear()
+                    ax.plot(observed_data, label="Observed Data", color="blue")
+                    ax.plot(combined_plus_sine, label="Combined Sine Waves", color="orange")
+                    ax.set_title(f"Real-Time Fitting Progress - Wave {wave_count}")
+                    ax.legend()
+                    plt.pause(0.01)
 
         if chunk_idx % 10 == 0:
             progress = (chunk_idx + 1) / num_chunks * 100
@@ -428,6 +430,8 @@ def brute_force_sine_wave_search(observed_data, combined_wave, context, queue, a
 
     logging.info(f"Wave {wave_count}: Completed brute-force search with best score: {best_score_so_far}")
     return top_candidates
+
+# -------------------- End of Brute-Force Search Phase -------------------- #
 
 def main():
     parser = argparse.ArgumentParser(description="Time Series Modeling with Sine Waves")
@@ -448,6 +452,10 @@ def main():
                         help="Dynamically choose step size based on observed and combined wave differences")
     parser.add_argument('--set-negatives-zero', type=str, choices=['after_sum', 'per_wave', 'none'], default='none',
                         help="How to handle negative sine wave values: 'after_sum', 'per_wave', or 'none' (default)")
+
+    # **New Argument: Number of Top Candidates**
+    parser.add_argument('--top-candidates', type=int, default=5, help="Number of top candidates to consider. Default is 5.")
+
     args = parser.parse_args()
 
     # Setup logging after parsing arguments
@@ -537,13 +545,16 @@ def main():
             logging.info(f"Using {step_size} step size based on difference: {difference:.2f}")
         else:
             step_size = args.desired_step_size
+
+        # **Pass `args.top_candidates` to brute_force_sine_wave_search**
         top_candidates = brute_force_sine_wave_search(
             observed_data, combined_wave, context, queue, ax, wave_count,
             desired_step_size=step_size,
             set_negatives_zero=args.set_negatives_zero,
             max_observed=max_observed,
             max_work_group_size=max_work_group_size,
-            max_mem_alloc_size=max_mem_alloc_size
+            max_mem_alloc_size=max_mem_alloc_size,
+            num_top=args.top_candidates  # Configurable top candidates
         )
 
         if args.desired_refinement_step_size.lower() != 'skip':
