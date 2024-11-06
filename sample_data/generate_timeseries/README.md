@@ -24,7 +24,7 @@ Run the script from the command line, providing optional arguments to control va
 
 ### Basic Command
 ```bash
-python generate_sample_data.py
+python generate_timeseries.py
 ```
 
 ### Command-line Arguments
@@ -46,7 +46,7 @@ python generate_sample_data.py
 
 ### Example Command
 ```bash
-python generate_sample_data.py --training-output-file="training_data.csv" --testing-output-file="testing_data.csv" --training-start-date="2000-01-01" --training-end-date="2005-01-01" --testing-start-date="1990-01-01" --testing-end-date="2015-01-01" --waves-dir="waves" --num-waves=7 --max-amplitude=100 --max-frequency=0.002 --noise-std=2 --set-negatives-zero
+python generate_timeseries.py --training-output-file="training_data.csv" --testing-output-file="testing_data.csv" --training-start-date="2000-01-01" --training-end-date="2005-01-01" --testing-start-date="1990-01-01" --testing-end-date="2015-01-01" --waves-dir="waves" --num-waves=7 --max-amplitude=100 --max-frequency=0.002 --noise-std=2 --set-negatives-zero
 ```
 
 This command will generate a synthetic dataset with:
@@ -69,6 +69,17 @@ date,value
 2000-01-02,25.1
 2000-01-03,21.8
 ...
+```
+
+## Using the data with sines
+
+Example usage
+```
+# Utilize the training data with sines.
+python3 sines.py --data-file sample_data/generate_timeseries/training_data.csv --date-col date --value-col value --wave-count 0
+
+# Utilize the testing data with the extrapolator.
+python3 extrapolator.py --data-file sample_data/generate_timeseries/testing_data.csv --value-col value --date-col date
 ```
 
 ## Notes
