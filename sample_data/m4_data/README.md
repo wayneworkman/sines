@@ -64,7 +64,7 @@ The script includes optional logging to help debug and monitor the processing fl
 
 After having run the script to produce the training data and test data, you can use `sines.py` like this with the training data.
 ```
-python3 sines.py --data-file ~/Downloads/M4Data_transformed/M1_Monthly-train.csv --date-col Timestamp --value-col Value --wave-count 0 --desired-refinement-step-size fast
+python3 sines.py --data-file ~/Downloads/M4Data_transformed/M1_Monthly-train.csv --date-col Timestamp --value-col Value --wave-count 0
 ```
 
 After having comleted a sufficient amount of training, you can stop sines.py and use `extrapolator.py` with the testing data. We can set predict-before and predict-after to zero since we combined the training data with the test data into a test_combined.csv file via the `m4_data_etl.py` script. With the graph produced, you can visually see how the predicted values align with the actual test data.
