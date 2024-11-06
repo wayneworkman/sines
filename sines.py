@@ -39,6 +39,45 @@ REFINEMENT_STEP_SIZES_BASE = {
     }
 }
 
+# -------------------- OpenCL Kernel Definition -------------------- #
+
+KERNEL_CODE = """
+__kernel void calculate_fitness(
+    __global const float *observed,
+    __global const float *combined,
+    __global const float *amplitudes,
+    __global const float *frequencies,
+    __global const float *phase_shifts,
+    __global float *scores,
+    int num_points,
+    int zero_mode  // 0: no zeroing, 1: per_wave, 2: after_sum
+) {
+    int gid = get_global_id(0);
+    float amplitude = amplitudes[gid];
+    float frequency = frequencies[gid];
+    float phase_shift = phase_shifts[gid];
+    float score = 0.0f;
+
+    for (int i = 0; i < num_points; i++) {
+        float sine_value = amplitude * sin(2.0f * 3.141592653589793f * frequency * i + phase_shift);
+        
+        if (zero_mode == 1 && sine_value < 0) {
+            sine_value = 0;  // per_wave zeroing
+        }
+        
+        float combined_value = combined[i] + sine_value;
+        
+        if (zero_mode == 2 && combined_value < 0) {
+            combined_value = 0;  // after_sum zeroing
+        }
+        
+        float diff = observed[i] - combined_value;
+        score += fabs(diff);
+    }
+    scores[gid] = score;
+}
+"""
+
 # -------------------- Refinement Phase Implementation -------------------- #
 
 def refine_candidates(top_candidates, observed_data, combined_wave, context, queue, ax, wave_count, desired_refinement_step_size='fast', set_negatives_zero=False, max_observed=1.0):
@@ -47,40 +86,19 @@ def refine_candidates(top_candidates, observed_data, combined_wave, context, que
     refined_best_score = np.inf
     refined_best_params = None
 
-    # Additional parameter for kernel to control negative value handling
-    non_negative = 1 if set_negatives_zero else 0
+    # Determine zero_mode based on set_negatives_zero
+    if set_negatives_zero == 'per_wave':
+        zero_mode = 1
+    elif set_negatives_zero == 'after_sum':
+        zero_mode = 2
+    else:
+        zero_mode = 0
 
     amplitude_step = REFINEMENT_STEP_SIZES_BASE[desired_refinement_step_size]["amplitude_step_ratio"] * max_observed
     frequency_step = REFINEMENT_STEP_SIZES_BASE[desired_refinement_step_size]["frequency_step"]
     phase_shift_step = REFINEMENT_STEP_SIZES_BASE[desired_refinement_step_size]["phase_shift_step"]
 
-    kernel_code = """
-    __kernel void calculate_fitness(
-        __global const float *observed,
-        __global const float *combined,
-        __global const float *amplitudes,
-        __global const float *frequencies,
-        __global const float *phase_shifts,
-        __global float *scores,
-        int num_points,
-        int non_negative
-    ) {
-        int gid = get_global_id(0);
-        float amplitude = amplitudes[gid];
-        float frequency = frequencies[gid];
-        float phase_shift = phase_shifts[gid];
-        float score = 0.0f;
-
-        for (int i = 0; i < num_points; i++) {
-            float sine_value = amplitude * sin(2.0f * 3.141592653589793f * frequency * i + phase_shift);
-            if (non_negative && sine_value < 0) sine_value = 0;
-            float diff = observed[i] - (combined[i] + sine_value);
-            score += fabs(diff);
-        }
-        scores[gid] = score;
-    }
-    """
-    program = cl.Program(context, kernel_code).build()
+    program = cl.Program(context, KERNEL_CODE).build()
     mf = cl.mem_flags
     observed_buf = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=observed_data)
     combined_buf = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=combined_wave)
@@ -136,7 +154,7 @@ def refine_candidates(top_candidates, observed_data, combined_wave, context, que
             kernel = program.calculate_fitness
             kernel.set_args(
                 observed_buf, combined_buf, amplitudes_buf, frequencies_buf,
-                phase_shifts_buf, scores_buf, np.int32(len(observed_data)), np.int32(non_negative)
+                phase_shifts_buf, scores_buf, np.int32(len(observed_data)), np.int32(zero_mode)
             )
 
             if current_chunk_size >= LOCAL_WORK_SIZE:
@@ -169,10 +187,13 @@ def refine_candidates(top_candidates, observed_data, combined_wave, context, que
 
             if ax is not None:
                 if chunk_idx % 5 == 0 or chunk_idx == num_chunks - 1:
-                    sine_wave = generate_sine_wave(refined_best_params, len(observed_data), set_negatives_zero)
+                    sine_wave = generate_sine_wave(refined_best_params, len(observed_data), set_negatives_zero=(set_negatives_zero == 'per_wave'))
+                    combined_plus_sine = combined_wave + sine_wave
+                    if set_negatives_zero == 'after_sum':
+                        combined_plus_sine = np.maximum(combined_plus_sine, 0)
                     ax.clear()
                     ax.plot(observed_data, label="Observed Data", color="blue")
-                    ax.plot(combined_wave + sine_wave, label="Combined Sine Waves", color="orange")
+                    ax.plot(combined_plus_sine, label="Combined Sine Waves", color="orange")
                     ax.set_title(f"Refinement Progress - Wave {wave_count}")
                     ax.legend()
                     plt.pause(0.01)
@@ -231,7 +252,7 @@ def generate_sine_wave(params, num_points, set_negatives_zero=False):
         np.maximum(sine_wave, 0, out=sine_wave)
     return sine_wave
 
-def load_previous_waves(num_points, output_dir, set_negatives_zero=False):
+def load_previous_waves(num_points, output_dir, set_negatives_zero=False, after_sum_zeroing=False):
     combined_wave = np.zeros(num_points, dtype=np.float32)
     for filename in sorted(os.listdir(output_dir)):
         if filename.endswith(".json"):
@@ -242,6 +263,8 @@ def load_previous_waves(num_points, output_dir, set_negatives_zero=False):
                     combined_wave += sine_wave
             except json.JSONDecodeError:
                 logging.warning(f"Error loading wave file {filename}. Skipping corrupted file.")
+    if after_sum_zeroing:
+        combined_wave = np.maximum(combined_wave, 0)
     return combined_wave
 
 def brute_force_sine_wave_search(observed_data, combined_wave, context, queue, ax, wave_count, desired_step_size='fast', set_negatives_zero=False, max_observed=1.0):
@@ -261,36 +284,15 @@ def brute_force_sine_wave_search(observed_data, combined_wave, context, queue, a
 
     logging.info(f"Wave {wave_count}: Starting brute-force search with {total_combinations} combinations.")
 
-    # Additional parameter for kernel to control negative value handling
-    non_negative = 1 if set_negatives_zero else 0
+    # Determine zero_mode based on set_negatives_zero
+    if set_negatives_zero == 'per_wave':
+        zero_mode = 1
+    elif set_negatives_zero == 'after_sum':
+        zero_mode = 2
+    else:
+        zero_mode = 0
 
-    kernel_code = """
-    __kernel void calculate_fitness(
-        __global const float *observed,
-        __global const float *combined,
-        __global const float *amplitudes,
-        __global const float *frequencies,
-        __global const float *phase_shifts,
-        __global float *scores,
-        int num_points,
-        int non_negative
-    ) {
-        int gid = get_global_id(0);
-        float amplitude = amplitudes[gid];
-        float frequency = frequencies[gid];
-        float phase_shift = phase_shifts[gid];
-        float score = 0.0f;
-
-        for (int i = 0; i < num_points; i++) {
-            float sine_value = amplitude * sin(2.0f * 3.141592653589793f * frequency * i + phase_shift);
-            if (non_negative && sine_value < 0) sine_value = 0;
-            float diff = observed[i] - (combined[i] + sine_value);
-            score += fabs(diff);
-        }
-        scores[gid] = score;
-    }
-    """
-    program = cl.Program(context, kernel_code).build()
+    program = cl.Program(context, KERNEL_CODE).build()
     mf = cl.mem_flags
     observed_buf = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=observed_data)
     combined_buf = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=combined_wave)
@@ -320,7 +322,7 @@ def brute_force_sine_wave_search(observed_data, combined_wave, context, queue, a
         kernel = program.calculate_fitness
         kernel.set_args(
             observed_buf, combined_buf, amplitudes_buf, frequencies_buf,
-            phase_shifts_buf, scores_buf, np.int32(len(observed_data)), np.int32(non_negative)
+            phase_shifts_buf, scores_buf, np.int32(len(observed_data)), np.int32(zero_mode)
         )
 
         if current_chunk_size >= LOCAL_WORK_SIZE:
@@ -360,10 +362,13 @@ def brute_force_sine_wave_search(observed_data, combined_wave, context, queue, a
         if ax is not None:
             if chunk_idx % 5 == 0 or chunk_idx == num_chunks - 1:
                 best_params = top_candidates[0][0]
-                sine_wave = generate_sine_wave(best_params, len(observed_data), set_negatives_zero)
+                sine_wave = generate_sine_wave(best_params, len(observed_data), set_negatives_zero=(set_negatives_zero == 'per_wave'))
+                combined_plus_sine = combined_wave + sine_wave
+                if set_negatives_zero == 'after_sum':
+                    combined_plus_sine = np.maximum(combined_plus_sine, 0)
                 ax.clear()
                 ax.plot(observed_data, label="Observed Data", color="blue")
-                ax.plot(combined_wave + sine_wave, label="Combined Sine Waves", color="orange")
+                ax.plot(combined_plus_sine, label="Combined Sine Waves", color="orange")
                 ax.set_title(f"Real-Time Fitting Progress - Wave {wave_count}")
                 ax.legend()
                 plt.pause(0.01)
@@ -445,7 +450,9 @@ def main():
         }
     }
 
-    combined_wave = load_previous_waves(len(observed_data), args.waves_dir, set_negatives_zero=(args.set_negatives_zero == 'per_wave'))
+    # Determine if after_sum_zeroing is needed
+    after_sum_zeroing = args.set_negatives_zero == 'after_sum'
+    combined_wave = load_previous_waves(len(observed_data), args.waves_dir, set_negatives_zero=(args.set_negatives_zero == 'per_wave'), after_sum_zeroing=after_sum_zeroing)
 
     # Initialize plotting if not disabled
     if not args.no_plot:
@@ -482,7 +489,7 @@ def main():
         top_candidates = brute_force_sine_wave_search(
             observed_data, combined_wave, context, queue, ax, wave_count,
             desired_step_size=step_size,
-            set_negatives_zero=(args.set_negatives_zero == 'per_wave'),
+            set_negatives_zero=args.set_negatives_zero,
             max_observed=max_observed
         )
 
@@ -490,7 +497,7 @@ def main():
             best_params, best_score = refine_candidates(
                 top_candidates, observed_data, combined_wave, context, queue, ax, wave_count,
                 desired_refinement_step_size=args.desired_refinement_step_size,
-                set_negatives_zero=(args.set_negatives_zero == 'per_wave'),
+                set_negatives_zero=args.set_negatives_zero,
                 max_observed=max_observed
             )
         else:
@@ -508,10 +515,8 @@ def main():
                 # If handling per_wave, simply add the new_wave
                 combined_wave += new_wave
             elif args.set_negatives_zero == 'after_sum':
-                # Reload all waves without per-wave zeroing
-                combined_wave = load_previous_waves(len(observed_data), args.waves_dir, set_negatives_zero=False)
-                # Apply sum-level zeroing
-                combined_wave = np.maximum(combined_wave, 0)
+                # Reload all waves without per-wave zeroing and apply after_sum_zeroing
+                combined_wave = load_previous_waves(len(observed_data), args.waves_dir, set_negatives_zero=False, after_sum_zeroing=True)
 
             if not args.no_plot and ax is not None:
                 ax.clear()
