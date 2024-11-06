@@ -7,37 +7,12 @@ import json
 from datetime import datetime
 
 def create_sine_wave(t, amplitude, frequency, phase_shift):
-    """
-    Create a sine wave based on time indices and wave parameters.
-
-    Parameters:
-    - t (np.ndarray): Time indices.
-    - amplitude (float): Amplitude of the sine wave.
-    - frequency (float): Frequency of the sine wave.
-    - phase_shift (float): Phase shift of the sine wave.
-
-    Returns:
-    - sine_wave (np.ndarray): Generated sine wave values.
-    """
     sine_wave = amplitude * np.sin(2 * np.pi * frequency * t + phase_shift)
     return sine_wave
 
 def generate_wave_parameters(waves_dir, num_waves, max_amplitude, max_frequency):
-    """
-    Generate and save wave parameters to the waves directory.
-
-    Parameters:
-    - waves_dir (str): Directory to store individual wave parameters.
-    - num_waves (int): Number of sine waves to generate.
-    - max_amplitude (float): Maximum amplitude for the generated sine waves.
-    - max_frequency (float): Maximum frequency for the generated sine waves.
-    
-    Returns:
-    - wave_params_list (list): List of wave parameters dictionaries.
-    """
     wave_params_list = []
     
-    # Ensure the waves directory exists
     if not os.path.exists(waves_dir):
         os.makedirs(waves_dir)
         print(f"Created waves directory at {waves_dir}")
@@ -54,7 +29,6 @@ def generate_wave_parameters(waves_dir, num_waves, max_amplitude, max_frequency)
         }
         wave_params_list.append(wave_params)
         
-        # Save individual sine wave parameters to the waves directory
         wave_filename = os.path.join(waves_dir, f"wave_{wave_id}.json")
         with open(wave_filename, "w") as f:
             json.dump(wave_params, f, indent=4)
@@ -63,18 +37,6 @@ def generate_wave_parameters(waves_dir, num_waves, max_amplitude, max_frequency)
     return wave_params_list
 
 def generate_combined_wave(date_range, wave_params_list, noise_std=1, set_negatives_zero=False):
-    """
-    Generate the combined wave by summing individual sine waves and adding noise.
-
-    Parameters:
-    - date_range (pd.DatetimeIndex): Date range for the combined wave.
-    - wave_params_list (list): List of wave parameters dictionaries.
-    - noise_std (float): Standard deviation of the Gaussian noise to add.
-    - set_negatives_zero (bool): If True, sets combined wave values below zero to zero.
-
-    Returns:
-    - combined_wave (np.ndarray): The combined sine wave with noise.
-    """
     num_points = len(date_range)
     t = np.arange(num_points)
     combined_wave = np.zeros(num_points)
@@ -83,23 +45,15 @@ def generate_combined_wave(date_range, wave_params_list, noise_std=1, set_negati
         wave = create_sine_wave(t, params["amplitude"], params["frequency"], params["phase_shift"])
         combined_wave += wave
     
-    # Add Gaussian noise
     noise = np.random.normal(0, noise_std, num_points)
     combined_wave += noise
     
     if set_negatives_zero:
-        combined_wave = np.maximum(combined_wave, 0)  # Ensure no negative values
+        combined_wave = np.maximum(combined_wave, 0)
     
     return combined_wave
 
 def save_run_parameters(params, parameters_dir):
-    """
-    Save the run parameters to a timestamped text file.
-
-    Parameters:
-    - params (dict): Dictionary of all parameters used in the run.
-    - parameters_dir (str): Directory to store the parameters file.
-    """
     if not os.path.exists(parameters_dir):
         os.makedirs(parameters_dir)
         print(f"Created parameters directory at {parameters_dir}")
@@ -113,16 +67,6 @@ def save_run_parameters(params, parameters_dir):
     print(f"Saved run parameters to {parameters_filename}")
 
 def split_and_save_data(combined_df, training_range, testing_range, training_output, testing_output):
-    """
-    Split the combined DataFrame into training and testing sets and save them.
-
-    Parameters:
-    - combined_df (pd.DataFrame): The combined DataFrame with all data.
-    - training_range (tuple): (start_date, end_date) for training data.
-    - testing_range (tuple): (start_date, end_date) for testing data.
-    - training_output (str): Path to save the training data CSV.
-    - testing_output (str): Path to save the testing data CSV.
-    """
     training_start, training_end = training_range
     testing_start, testing_end = testing_range
     
@@ -136,49 +80,38 @@ def split_and_save_data(combined_df, training_range, testing_range, training_out
     print(f"Testing data saved to {testing_output}")
 
 def parse_arguments():
-    """
-    Parse command-line arguments.
-
-    Returns:
-    - args: Parsed arguments.
-    """
     parser = argparse.ArgumentParser(description="Generate Training and Testing Time Series Data with Individual Wave Parameters")
     
     # Output files
-    parser.add_argument('--training_output_file', type=str, default="training_data.csv", help="Path to save the generated training data CSV")
-    parser.add_argument('--testing_output_file', type=str, default="testing_data.csv", help="Path to save the generated testing data CSV")
+    parser.add_argument('--training-output-file', type=str, default="training_data.csv", help="Path to save the generated training data CSV")
+    parser.add_argument('--testing-output-file', type=str, default="testing_data.csv", help="Path to save the generated testing data CSV")
     
     # Date ranges
-    parser.add_argument('--training_start_date', type=str, default="2000-01-01", help="Start date for the training data in YYYY-MM-DD format")
-    parser.add_argument('--training_end_date', type=str, default="2005-01-01", help="End date for the training data in YYYY-MM-DD format")
-    parser.add_argument('--testing_start_date', type=str, default="1990-01-01", help="Start date for the testing data in YYYY-MM-DD format")
-    parser.add_argument('--testing_end_date', type=str, default="2015-01-01", help="End date for the testing data in YYYY-MM-DD format")
+    parser.add_argument('--training-start-date', type=str, default="2000-01-01", help="Start date for the training data in YYYY-MM-DD format")
+    parser.add_argument('--training-end-date', type=str, default="2005-01-01", help="End date for the training data in YYYY-MM-DD format")
+    parser.add_argument('--testing-start-date', type=str, default="1990-01-01", help="Start date for the testing data in YYYY-MM-DD format")
+    parser.add_argument('--testing-end-date', type=str, default="2015-01-01", help="End date for the testing data in YYYY-MM-DD format")
     
     # Wave generation parameters
-    parser.add_argument('--waves_dir', type=str, default="waves", help="Directory to store individual wave parameters")
-    parser.add_argument('--num_waves', type=int, default=5, help="Number of sine waves to combine in the generated data")
-    parser.add_argument('--max_amplitude', type=float, default=150, help="Maximum amplitude for the generated sine waves")
-    parser.add_argument('--max_frequency', type=float, default=0.001, help="Maximum frequency for the generated sine waves")
-    parser.add_argument('--noise_std', type=float, default=1, help="Standard deviation of noise added to the sine waves")
-    parser.add_argument('--set_negatives_zero', action='store_true', help="Set sine wave values below zero to zero")
+    parser.add_argument('--waves-dir', type=str, default="waves", help="Directory to store individual wave parameters")
+    parser.add_argument('--num-waves', type=int, default=5, help="Number of sine waves to combine in the generated data")
+    parser.add_argument('--max-amplitude', type=float, default=150, help="Maximum amplitude for the generated sine waves")
+    parser.add_argument('--max-frequency', type=float, default=0.001, help="Maximum frequency for the generated sine waves")
+    parser.add_argument('--noise-std', type=float, default=1, help="Standard deviation of noise added to the sine waves")
+    parser.add_argument('--set-negatives-zero', action='store_true', help="Set sine wave values below zero to zero")
     
     # Parameters logging
-    parser.add_argument('--parameters_dir', type=str, default="run_parameters", help="Directory to store run parameters")
+    parser.add_argument('--parameters-dir', type=str, default="run_parameters", help="Directory to store run parameters")
     
     args = parser.parse_args()
     return args
 
 def main():
-    # Parse command-line arguments
     args = parse_arguments()
     
-    # Collect all parameters into a dictionary
     run_parameters = vars(args)
-    
-    # Save run parameters
     save_run_parameters(run_parameters, args.parameters_dir)
     
-    # Determine the union date range
     training_start = pd.to_datetime(args.training_start_date)
     training_end = pd.to_datetime(args.training_end_date)
     testing_start = pd.to_datetime(args.testing_start_date)
@@ -189,7 +122,6 @@ def main():
     
     print(f"\nOverall date range for wave generation: {overall_start_date.date()} to {overall_end_date.date()}")
     
-    # Generate and save wave parameters
     wave_params_list = generate_wave_parameters(
         waves_dir=args.waves_dir,
         num_waves=args.num_waves,
@@ -197,10 +129,8 @@ def main():
         max_frequency=args.max_frequency
     )
     
-    # Create the overall date range
     overall_date_range = pd.date_range(start=overall_start_date, end=overall_end_date, freq='D')
     
-    # Generate the combined wave
     combined_wave = generate_combined_wave(
         date_range=overall_date_range,
         wave_params_list=wave_params_list,
@@ -208,13 +138,11 @@ def main():
         set_negatives_zero=args.set_negatives_zero
     )
     
-    # Create a DataFrame with date and combined wave data
     combined_df = pd.DataFrame({
         'date': overall_date_range,
         'value': combined_wave
     })
     
-    # Split into training and testing datasets
     split_and_save_data(
         combined_df=combined_df,
         training_range=(args.training_start_date, args.training_end_date),
