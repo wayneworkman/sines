@@ -4,6 +4,11 @@ It is designed to search for multiple sine waves concurrently, because the inter
 discovered simultaniously will lead to better fitting models.
 I don't know if this script actually works or not because I've never waited for it to finish processing.
 It does seem to chug along without error, though. This is provided free of charge. :) 
+
+Example execution:
+python3 multi_sines.py --data-file sample_data/generate_synthetic_timeseries/training_data.csv --date-col date --value-col value --wave-count 5 --num-waves 2
+
+
 """
 
 
