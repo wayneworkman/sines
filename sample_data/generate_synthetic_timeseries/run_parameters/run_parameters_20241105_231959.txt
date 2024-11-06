@@ -1,0 +1,15 @@
+{
+    "training_output_file": "training_data.csv",
+    "testing_output_file": "testing_data.csv",
+    "training_start_date": "2000-01-01",
+    "training_end_date": "2005-01-01",
+    "testing_start_date": "1990-01-01",
+    "testing_end_date": "2015-01-01",
+    "waves_dir": "waves",
+    "num_waves": 5,
+    "max_amplitude": 150,
+    "max_frequency": 0.001,
+    "noise_std": 1,
+    "set_negatives_zero": false,
+    "parameters_dir": "run_parameters"
+}
