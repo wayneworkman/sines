@@ -399,8 +399,8 @@ def main():
 
     parser.add_argument('--progressive-step-sizes', action='store_true', default=True,
                         help="Dynamically choose step size based on observed and combined wave differences")
-    parser.add_argument('--set-negatives-zero', type=str, choices=['after_sum', 'per_wave'], default='after_sum',
-                        help="How to handle negative sine wave values: 'after_sum' (default) or 'per_wave'")
+    parser.add_argument('--set-negatives-zero', type=str, choices=['after_sum', 'per_wave', 'none'], default='none',
+                        help="How to handle negative sine wave values: 'after_sum', 'per_wave', or 'none' (default)")
     args = parser.parse_args()
 
     # Setup logging after parsing arguments
