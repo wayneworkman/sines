@@ -66,7 +66,7 @@ The project operates in two primary phases: **Brute-Force Search** and **Refinem
 The `sines.py` script processes time series data to identify sine waves that model the data accurately.
 
 **Example Usage**:
-```bash
+```
 python3 sines.py --data-file sample_data/sunspots/SN_d_tot_V2.0.csv --date-col date --value-col sunspot --desired-step-size fast --desired-refinement-step-size fast --wave-count 5 --set-negatives-zero after_sum
 ```
 
@@ -81,16 +81,37 @@ python3 sines.py --data-file sample_data/sunspots/SN_d_tot_V2.0.csv --date-col d
 - `--desired-refinement-step-size`: Step size mode for refinement phase (`fine`, `normal`, `fast`, `skip`; default: `skip`).
 - `--progressive-step-sizes`: **(Flag)** Dynamically adjust step sizes based on observed and combined wave differences (default: enabled).
 - `--set-negatives-zero`: How to handle negative sine wave values (`after_sum`, `per_wave`; default: `after_sum`).
+  - **`after_sum`**: Apply zeroing to the **combined sine waves** after summing all individual waves. This means that after each new sine wave is added to the cumulative sum, any resulting negative values in the combined waveform are set to zero **only** for the purpose of fitness evaluation and visualization. The actual cumulative sum retains its true value, including negative contributions, ensuring that all wave interactions are accurately considered during the fitting process.
+  - **`per_wave`**: Apply zeroing to **each individual sine wave** before adding it to the combined wave. This ensures that each sine wave contributes only non-negative values to the combined wave, preventing any negative values from appearing in the combined waveform throughout the entire fitting and combination processes.
 - `--no-plot`: **(Flag)** Disable real-time plotting.
 - `--wave-count`: Specify the maximum number of waves to discover before the script stops. If set to `0`, the script will continue indefinitely (default: `50`).
 
+#### Detailed Explanation of `--set-negatives-zero`
+
+The `--set-negatives-zero` argument controls how negative values in the sine waves are handled during the sine wave discovery and combination phases:
+
+- **`after_sum` (Default)**:
+  - **Fitting Process**: During the fitting (wave discovery) phase, each candidate sine wave is added to the existing combined wave. Immediately after summing, any negative values resulting from the combination are set to zero **before** the fitness evaluation. This ensures that the combined wave remains non-negative **only during evaluation and visualization**, while the true cumulative sum retains all sine wave contributions, including negative ones. This approach allows the fitting algorithm to assess the impact of each new wave accurately without permanently altering the cumulative waveform.
+  - **Combination Phase**: Once a sine wave is selected and added, the combined wave used for evaluation has had its negative values zeroed **only** for that evaluation step, maintaining the integrity of the overall cumulative sum for future wave additions.
+  - **Visualization**: The combined wave displayed in real-time visualization reflects the zeroed state during fitness evaluations, providing a clear and non-negative representation of the fitting progress.
+
+- **`per_wave`**:
+  - **Fitting Process**: Each candidate sine wave being evaluated has its negative values set to zero **before** being added to the combined wave. This ensures that only non-negative values from the candidate wave contribute to the combined wave, maintaining a strictly non-negative combined waveform throughout the entire fitting and combination processes.
+  - **Combination Phase**: As each sine wave is added, the combined wave remains free of negative values since all contributing sine waves are non-negative.
+  - **Visualization**: The combined wave never displays negative values at any point during the fitting and combination processes, providing a consistently non-negative representation.
+
+**Choosing Between `after_sum` and `per_wave`**:
+
+- Use `--set-negatives-zero after_sum` when you want the fitting process to consider the full oscillatory behavior of sine waves, including negative values, for a more accurate fit. This option ensures that the combined wave remains non-negative by zeroing negative sums **only** during fitness evaluations, preserving the true cumulative sum of all waves for comprehensive fitting.
+
+- Use `--set-negatives-zero per_wave` when you require that the combined wave remains non-negative throughout the entire process, including during fitting. This option restricts each sine wave to contribute only non-negative values, preventing any negative values in the combined wave at all times and ensuring a consistently non-negative waveform.
 
 ### Extrapolating Data (`extrapolator.py`)
 
 The `extrapolator.py` script reconstructs and extrapolates the data using generated sine waves.
 
 **Example Usage**:
-```bash
+```
 python3 extrapolator.py --data-file sample_data/sunspots/SN_d_tot_V2.0.csv --date-col date --value-col sunspot
 ```
 
@@ -109,7 +130,7 @@ python3 extrapolator.py --data-file sample_data/sunspots/SN_d_tot_V2.0.csv --dat
 The `test_OpenCL_support.py` script verifies OpenCL support and GPU functionality.
 
 **Example Usage**:
-```bash
+```
 python3 test_OpenCL_support.py
 ```
 
@@ -129,7 +150,7 @@ This script performs the following actions:
 The `tests.py` script contains a comprehensive suite of unit tests to validate various functionalities within the **Sines Project**.
 
 **Example Usage**:
-```bash
+```
 python3 tests.py
 ```
 
@@ -178,7 +199,7 @@ The **Sines Project** has been optimized for GPU resources, enhancing processing
 - **Date Range**: The date range for extrapolated data is constrained by the datetime library and Pandas limitations:
   - **Start Date**: 1677-09-22
   - **End Date**: 2262-04-10
-- **Date approximation**: Because `sines.py` and `extrapolator.py` both use data index rather than date to calculate data values for sine waves, the dates displayed within extrapolator are a very close aproximation but not exactly correct.
+- **Date Approximation**: Because `sines.py` and `extrapolator.py` both use data index rather than date to calculate data values for sine waves, the dates displayed within extrapolator are a very close approximation but not exactly correct.
 - **Performance on Large Datasets**: High-amplitude datasets with extensive data points significantly increase processing times due to larger search spaces.
 - **Step Size Configuration**: Improper step size configurations can lead to suboptimal sine wave discoveries or excessively long computation times.
 - **Dependency on GPU**: Optimal performance relies on GPU availability and proper OpenCL setup. Systems without compatible GPUs may experience degraded performance.
@@ -203,27 +224,26 @@ Contributions are welcome! Please follow these steps to contribute to the **Sine
 
 1. **Fork the Repository**: Click the "Fork" button at the top-right corner of the repository page.
 1. **Clone Your Fork**:  
-   ```bash
+   ```
    git clone https://github.com/wayneworkman/sines.git
    ```
 1. **Create a New Branch**:  
-   ```bash
+   ```
    git checkout -b feature/your-feature-name
    ```
 1. **Make Your Changes**: Implement your feature or fix.
-1. **Execute, update, and add to the tests**:
-   ```bash
+1. **Execute, Update, and Add to the Tests**:
+   ```
    python3 tests.py
    ```
 1. **Commit Your Changes**:  
-   ```bash
+   ```
    git commit -m "Add feature: your feature description"
    ```
 1. **Push to Your Fork**:  
-   ```bash
+   ```
    git push origin feature/your-feature-name
    ```
 1. **Open a Pull Request**: Navigate to the original repository and click "New Pull Request."
-
 
 **Disclaimer**: This project is provided "as is" without warranty. Use at your own risk.

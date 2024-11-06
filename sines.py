@@ -252,7 +252,11 @@ def generate_sine_wave(params, num_points, set_negatives_zero=False):
         np.maximum(sine_wave, 0, out=sine_wave)
     return sine_wave
 
-def load_previous_waves(num_points, output_dir, set_negatives_zero=False, after_sum_zeroing=False):
+def load_previous_waves(num_points, output_dir, set_negatives_zero=False):
+    """
+    Load all previously saved waves and compute the true cumulative sum without applying zeroing.
+    Zeroing (if required) is handled only during fitness evaluation.
+    """
     combined_wave = np.zeros(num_points, dtype=np.float32)
     for filename in sorted(os.listdir(output_dir)):
         if filename.endswith(".json"):
@@ -263,8 +267,6 @@ def load_previous_waves(num_points, output_dir, set_negatives_zero=False, after_
                     combined_wave += sine_wave
             except json.JSONDecodeError:
                 logging.warning(f"Error loading wave file {filename}. Skipping corrupted file.")
-    if after_sum_zeroing:
-        combined_wave = np.maximum(combined_wave, 0)
     return combined_wave
 
 def brute_force_sine_wave_search(observed_data, combined_wave, context, queue, ax, wave_count, desired_step_size='fast', set_negatives_zero=False, max_observed=1.0):
@@ -452,7 +454,8 @@ def main():
 
     # Determine if after_sum_zeroing is needed
     after_sum_zeroing = args.set_negatives_zero == 'after_sum'
-    combined_wave = load_previous_waves(len(observed_data), args.waves_dir, set_negatives_zero=(args.set_negatives_zero == 'per_wave'), after_sum_zeroing=after_sum_zeroing)
+    # Load previous waves without applying after_sum_zeroing here
+    combined_wave = load_previous_waves(len(observed_data), args.waves_dir, set_negatives_zero=(args.set_negatives_zero == 'per_wave'))
 
     # Initialize plotting if not disabled
     if not args.no_plot:
@@ -511,17 +514,21 @@ def main():
                 json.dump(best_params, f)
 
             new_wave = generate_sine_wave(best_params, len(observed_data), set_negatives_zero=(args.set_negatives_zero == 'per_wave'))
-            if args.set_negatives_zero == 'per_wave':
-                # If handling per_wave, simply add the new_wave
-                combined_wave += new_wave
-            elif args.set_negatives_zero == 'after_sum':
-                # Reload all waves without per-wave zeroing and apply after_sum_zeroing
-                combined_wave = load_previous_waves(len(observed_data), args.waves_dir, set_negatives_zero=False, after_sum_zeroing=True)
+            # Add the new wave to the cumulative sum without applying any zeroing
+            combined_wave += new_wave
+
+            # No need to reload and zero the combined_wave here
+            # Zeroing is handled during fitness evaluation and plotting
 
             if not args.no_plot and ax is not None:
+                # For plotting, apply zeroing if 'after_sum' is specified
+                if args.set_negatives_zero == 'after_sum':
+                    combined_plus_sine = np.maximum(combined_wave, 0)
+                else:
+                    combined_plus_sine = combined_wave.copy()
                 ax.clear()
                 ax.plot(observed_data, label="Observed Data", color="blue")
-                ax.plot(combined_wave, label="Combined Sine Waves", color="orange")
+                ax.plot(combined_plus_sine, label="Combined Sine Waves", color="orange")
                 ax.set_title(f"Real-Time Fitting Progress - {wave_count} Waves")
                 ax.legend()
                 plt.pause(0.01)
