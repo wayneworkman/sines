@@ -242,6 +242,22 @@ def load_data(file_path, date_col="date", value_col="value", moving_average=None
     if moving_average:
         df[value_col] = df[value_col].rolling(window=moving_average, min_periods=1).mean()
 
+    # Log information about the loaded data file
+    num_data_points = len(df)
+    max_value = df[value_col].max()
+    min_value = df[value_col].min()
+    mean_value = df[value_col].mean()
+    start_date = df[date_col].min()
+    end_date = df[date_col].max()
+
+    logging.info("Loaded data statistics:")
+    logging.info(f"  Number of data points: {num_data_points}")
+    logging.info(f"  Max value: {max_value}")
+    logging.info(f"  Min value: {min_value}")
+    logging.info(f"  Mean value: {mean_value}")
+    logging.info(f"  Start date: {start_date}")
+    logging.info(f"  End date: {end_date}")
+
     return df[value_col].values.astype(np.float32)
 
 def generate_sine_wave(params, num_points, set_negatives_zero=False):
@@ -423,7 +439,8 @@ def main():
     if not os.path.exists(args.waves_dir):
         os.makedirs(args.waves_dir)
 
-    max_observed = np.max(observed_data) if len(observed_data) > 0 else 1.0
+    # **Modified Line: Use maximum absolute value instead of maximum positive value**
+    max_observed = np.max(np.abs(observed_data)) if len(observed_data) > 0 else 1.0
     scaling_factor = 1.5
     amplitude_upper_limit = max_observed * scaling_factor
 
@@ -504,8 +521,12 @@ def main():
                 max_observed=max_observed
             )
         else:
-            best_params, best_score = top_candidates[0][0], top_candidates[0][1]
-            logging.info(f"Wave {wave_count}: Refinement phase skipped. Using top candidate from brute-force search.")
+            if top_candidates:
+                best_params, best_score = top_candidates[0][0], top_candidates[0][1]
+                logging.info(f"Wave {wave_count}: Refinement phase skipped. Using top candidate from brute-force search.")
+            else:
+                best_params, best_score = None, np.inf
+                logging.info(f"Wave {wave_count}: Refinement phase skipped. No candidates available from brute-force search.")
 
         if best_params is not None:
             best_params = {k: float(v) for k, v in best_params.items()}
