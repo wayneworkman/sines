@@ -97,13 +97,13 @@ def generate_combined_sine_wave(sine_waves, indices, set_negatives_zero='after_s
     Parameters:
         sine_waves (list): List of dictionaries with sine wave parameters.
         indices (np.ndarray): Array of indices.
-        set_negatives_zero (str): 'after_sum' or 'per_wave' to determine negative handling.
+        set_negatives_zero (str): 'after_sum', 'per_wave', or 'none' to determine negative handling.
 
     Returns:
         combined_wave (np.ndarray): Combined sine wave values.
     """
-    if set_negatives_zero not in ['after_sum', 'per_wave']:
-        raise ValueError("set_negatives_zero must be either 'after_sum' or 'per_wave'")
+    if set_negatives_zero not in ['after_sum', 'per_wave', 'none']:
+        raise ValueError("set_negatives_zero must be either 'after_sum', 'per_wave', or 'none'")
 
     combined_wave = np.zeros_like(indices, dtype=np.float64)
     for idx, wave in enumerate(sine_waves, start=1):
@@ -198,8 +198,8 @@ def main():
     parser.add_argument('--waves-dir', type=str, default='waves', help='Directory containing sine wave JSON files (default: waves)')
     parser.add_argument('--date-col', type=str, default='Timestamp', help='Name of the column containing date information (default: Timestamp)')
     parser.add_argument('--value-col', type=str, default='Value', help='Name of the column containing observed values (default: Value)')
-    parser.add_argument('--set-negatives-zero', type=str, choices=['after_sum', 'per_wave'], default='after_sum',
-                        help="How to handle negative sine wave values: 'after_sum' (default) or 'per_wave'")
+    parser.add_argument('--set-negatives-zero', type=str, choices=['after_sum', 'per_wave', 'none'], default='none',
+                        help="How to handle negative sine wave values: 'after_sum', 'per_wave', or 'none' (default)")
     
     # New Arguments for Predictions
     parser.add_argument('--predict-before', type=float, default=5.0,

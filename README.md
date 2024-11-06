@@ -80,9 +80,7 @@ python3 sines.py --data-file sample_data/sunspots/SN_d_tot_V2.0.csv --date-col d
 - `--desired-step-size`: Step size mode for brute-force search (`fine`, `normal`, `fast`; default: `fast`).
 - `--desired-refinement-step-size`: Step size mode for refinement phase (`fine`, `normal`, `fast`, `skip`; default: `skip`).
 - `--progressive-step-sizes`: **(Flag)** Dynamically adjust step sizes based on observed and combined wave differences (default: enabled).
-- `--set-negatives-zero`: How to handle negative sine wave values (`after_sum`, `per_wave`; default: `after_sum`).
-  - **`after_sum`**: Apply zeroing to the **combined sine waves** after summing all individual waves. This means that after each new sine wave is added to the cumulative sum, any resulting negative values in the combined waveform are set to zero **only** for the purpose of fitness evaluation and visualization. The actual cumulative sum retains its true value, including negative contributions, ensuring that all wave interactions are accurately considered during the fitting process.
-  - **`per_wave`**: Apply zeroing to **each individual sine wave** before adding it to the combined wave. This ensures that each sine wave contributes only non-negative values to the combined wave, preventing any negative values from appearing in the combined waveform throughout the entire fitting and combination processes.
+- `--set-negatives-zero`: How to handle negative sine wave values (`after_sum`, `per_wave`, `none`; default: `none`).
 - `--no-plot`: **(Flag)** Disable real-time plotting.
 - `--wave-count`: Specify the maximum number of waves to discover before the script stops. If set to `0`, the script will continue indefinitely (default: `50`).
 
@@ -90,7 +88,7 @@ python3 sines.py --data-file sample_data/sunspots/SN_d_tot_V2.0.csv --date-col d
 
 The `--set-negatives-zero` argument controls how negative values in the sine waves are handled during the sine wave discovery and combination phases:
 
-- **`after_sum` (Default)**:
+- **`after_sum`**:
   - **Fitting Process**: During the fitting (wave discovery) phase, each candidate sine wave is added to the existing combined wave. Immediately after summing, any negative values resulting from the combination are set to zero **before** the fitness evaluation. This ensures that the combined wave remains non-negative **only during evaluation and visualization**, while the true cumulative sum retains all sine wave contributions, including negative ones. This approach allows the fitting algorithm to assess the impact of each new wave accurately without permanently altering the cumulative waveform.
   - **Combination Phase**: Once a sine wave is selected and added, the combined wave used for evaluation has had its negative values zeroed **only** for that evaluation step, maintaining the integrity of the overall cumulative sum for future wave additions.
   - **Visualization**: The combined wave displayed in real-time visualization reflects the zeroed state during fitness evaluations, providing a clear and non-negative representation of the fitting progress.
@@ -100,11 +98,16 @@ The `--set-negatives-zero` argument controls how negative values in the sine wav
   - **Combination Phase**: As each sine wave is added, the combined wave remains free of negative values since all contributing sine waves are non-negative.
   - **Visualization**: The combined wave never displays negative values at any point during the fitting and combination processes, providing a consistently non-negative representation.
 
-**Choosing Between `after_sum` and `per_wave`**:
+- **`none`**:
+  - **Fitting Process**: No zeroing is applied. Both individual sine waves and the combined waveform retain their negative values throughout the fitting and combination processes. This allows the algorithm to utilize the full oscillatory behavior of sine waves, potentially leading to a more accurate fit but resulting in a combined waveform that includes negative values.
+  - **Combination Phase**: The cumulative sum of sine waves includes all positive and negative contributions, reflecting the true nature of the fitted model.
+  - **Visualization**: The combined wave displays both positive and negative values, providing an unaltered view of the fitting progress.
 
-- Use `--set-negatives-zero after_sum` when you want the fitting process to consider the full oscillatory behavior of sine waves, including negative values, for a more accurate fit. This option ensures that the combined wave remains non-negative by zeroing negative sums **only** during fitness evaluations, preserving the true cumulative sum of all waves for comprehensive fitting.
+**Choosing Between Options**:
 
-- Use `--set-negatives-zero per_wave` when you require that the combined wave remains non-negative throughout the entire process, including during fitting. This option restricts each sine wave to contribute only non-negative values, preventing any negative values in the combined wave at all times and ensuring a consistently non-negative waveform.
+- **`after_sum`**: Ideal when you want to maintain the full dynamics of sine wave interactions during fitting while ensuring non-negative representations in evaluations and visualizations.
+- **`per_wave`**: Suitable for scenarios where a strictly non-negative combined waveform is required throughout the entire process.
+- **`none`**: Best when the complete oscillatory behavior of sine waves is essential for accurate modeling without any constraints on the combined waveform's sign.
 
 ### Extrapolating Data (`extrapolator.py`)
 
@@ -120,10 +123,32 @@ python3 extrapolator.py --data-file sample_data/sunspots/SN_d_tot_V2.0.csv --dat
 - `--waves-dir`: Directory containing sine wave JSON files (default: `waves`).
 - `--date-col`: Name of the column containing date information (default: `Timestamp`).
 - `--value-col`: Name of the column containing observed values (default: `Value`).
-- `--set-negatives-zero`: How to handle negative sine wave values (`after_sum`, `per_wave`; default: `after_sum`).
+- `--set-negatives-zero`: How to handle negative sine wave values (`after_sum`, `per_wave`, `none`; default: `none`).
 - `--predict-before`: Percentage of data points to predict before the observed data (default: `5.0`).
 - `--predict-after`: Percentage of data points to predict after the observed data (default: `5.0`).
 - `--moving-average`: Apply a moving average filter to smooth the data (default: `None`).
+
+#### Detailed Explanation of `--set-negatives-zero`
+
+The `--set-negatives-zero` argument in `extrapolator.py` functions similarly to its counterpart in `sines.py`, determining how negative values in the combined sine waves are handled during data reconstruction and extrapolation:
+
+- **`after_sum`**:
+  - **Extrapolation Process**: After all sine waves are combined to form the extrapolated waveform, any negative values resulting from the sum are set to zero. This ensures that the extrapolated data does not contain negative values, which can be essential for datasets where negative values are not meaningful (e.g., sales figures).
+  - **Impact on Data**: Maintains the integrity of individual sine waves during combination while ensuring the final extrapolated data is non-negative.
+
+- **`per_wave`**:
+  - **Extrapolation Process**: Each sine wave is processed individually to set negative values to zero **before** being added to the combined waveform. This ensures that the combined waveform remains non-negative throughout the entire extrapolation process.
+  - **Impact on Data**: Guarantees that the extrapolated data remains non-negative at all stages, potentially simplifying interpretations where negative values are invalid.
+
+- **`none`**:
+  - **Extrapolation Process**: No zeroing is applied. Both individual sine waves and the combined extrapolated waveform retain their negative values.
+  - **Impact on Data**: Allows for a complete representation of the sine wave contributions, including negative values, which may be necessary for datasets where negative values are valid and meaningful.
+
+**Choosing Between Options**:
+
+- **`after_sum`**: Suitable when you want the flexibility of negative sine wave contributions during combination but require the final extrapolated data to be non-negative.
+- **`per_wave`**: Ideal for scenarios where maintaining non-negative values throughout the extrapolation process is crucial.
+- **`none`**: Best when the dataset naturally includes negative values and you want to preserve the full dynamics of the combined sine waves without any alterations.
 
 ### Testing OpenCL Support (`test_OpenCL_support.py`)
 
@@ -204,7 +229,6 @@ The **Sines Project** has been optimized for GPU resources, enhancing processing
 - **Step Size Configuration**: Improper step size configurations can lead to suboptimal sine wave discoveries or excessively long computation times.
 - **Dependency on GPU**: Optimal performance relies on GPU availability and proper OpenCL setup. Systems without compatible GPUs may experience degraded performance.
 
-
 ## Logging
 
 Both `sines.py` and `extrapolator.py` generate detailed logs.
@@ -223,27 +247,27 @@ Logs are instrumental for monitoring the process and diagnosing issues during wa
 Contributions are welcome! Please follow these steps to contribute to the **Sines Project**:
 
 1. **Fork the Repository**: Click the "Fork" button at the top-right corner of the repository page.
-1. **Clone Your Fork**:  
-   ```
-   git clone https://github.com/wayneworkman/sines.git
-   ```
-1. **Create a New Branch**:  
-   ```
-   git checkout -b feature/your-feature-name
-   ```
-1. **Make Your Changes**: Implement your feature or fix.
-1. **Execute, Update, and Add to the Tests**:
-   ```
-   python3 tests.py
-   ```
-1. **Commit Your Changes**:  
-   ```
-   git commit -m "Add feature: your feature description"
-   ```
-1. **Push to Your Fork**:  
-   ```
-   git push origin feature/your-feature-name
-   ```
-1. **Open a Pull Request**: Navigate to the original repository and click "New Pull Request."
+2. **Clone Your Fork**:  
+```
+git clone https://github.com/wayneworkman/sines.git
+```
+3. **Create a New Branch**:  
+```
+git checkout -b feature/your-feature-name
+```
+4. **Make Your Changes**: Implement your feature or fix.
+5. **Execute, Update, and Add to the Tests**:
+```
+python3 tests.py
+```
+6. **Commit Your Changes**:  
+```
+git commit -m "Add feature: your feature description"
+```
+7. **Push to Your Fork**:  
+```
+git push origin feature/your-feature-name
+```
+8. **Open a Pull Request**: Navigate to the original repository and click "New Pull Request."
 
 **Disclaimer**: This project is provided "as is" without warranty. Use at your own risk.
