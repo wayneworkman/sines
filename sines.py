@@ -78,9 +78,34 @@ __kernel void calculate_fitness(
 }
 """
 
+# -------------------- Chunk Size Determination -------------------- #
+
+def determine_chunk_size(total_combinations, max_work_group_size, max_mem_alloc_size):
+    # Estimate the memory required per parameter combination
+    # Each combination has amplitude, frequency, phase_shift (3 floats) and score (1 float)
+    bytes_per_combination = 4 * 4  # 4 floats * 4 bytes each
+
+    # Calculate the maximum number of combinations that fit into the max memory allocation
+    max_combinations_memory = max_mem_alloc_size // bytes_per_combination
+
+    # Ensure chunk size is a multiple of max_work_group_size
+    max_combinations_memory = (max_combinations_memory // max_work_group_size) * max_work_group_size
+
+    # Set a reasonable upper limit if the calculated size is too large
+    reasonable_upper_limit = 1 << 20  # 1,048,576
+    chunk_size = min(max_combinations_memory, reasonable_upper_limit)
+
+    # Ensure chunk_size does not exceed total_combinations
+    chunk_size = min(chunk_size, total_combinations)
+
+    # Ensure chunk_size is at least LOCAL_WORK_SIZE
+    chunk_size = max(LOCAL_WORK_SIZE, chunk_size)
+
+    return chunk_size
+
 # -------------------- Refinement Phase Implementation -------------------- #
 
-def refine_candidates(top_candidates, observed_data, combined_wave, context, queue, ax, wave_count, desired_refinement_step_size='fast', set_negatives_zero=False, max_observed=1.0):
+def refine_candidates(top_candidates, observed_data, combined_wave, context, queue, ax, wave_count, desired_refinement_step_size='fast', set_negatives_zero=False, max_observed=1.0, max_work_group_size=LOCAL_WORK_SIZE, max_mem_alloc_size=134217728):
     logging.info(f"Wave {wave_count}: Starting refinement phase.")
 
     refined_best_score = np.inf
@@ -132,7 +157,7 @@ def refine_candidates(top_candidates, observed_data, combined_wave, context, que
         ], axis=-1)
         total_combinations = parameter_combinations.shape[0]
 
-        chunk_size = 1024
+        chunk_size = determine_chunk_size(total_combinations, max_work_group_size, max_mem_alloc_size)
         num_chunks = int(np.ceil(total_combinations / chunk_size))
         logging.info(f"Wave {wave_count}: Refinement candidate {candidate_idx + 1}/{len(top_candidates)} with {total_combinations} combinations.")
 
@@ -157,11 +182,11 @@ def refine_candidates(top_candidates, observed_data, combined_wave, context, que
                 phase_shifts_buf, scores_buf, np.int32(len(observed_data)), np.int32(zero_mode)
             )
 
-            if current_chunk_size >= LOCAL_WORK_SIZE:
-                if current_chunk_size % LOCAL_WORK_SIZE == 0:
-                    local_work_size = (LOCAL_WORK_SIZE,)
+            if current_chunk_size >= max_work_group_size:
+                if current_chunk_size % max_work_group_size == 0:
+                    local_work_size = (max_work_group_size,)
                 else:
-                    for lws in range(LOCAL_WORK_SIZE, 0, -1):
+                    for lws in range(max_work_group_size, 0, -1):
                         if current_chunk_size % lws == 0:
                             local_work_size = (lws,)
                             break
@@ -222,7 +247,13 @@ def setup_opencl():
     logging.info(f"Using device: {device.name}")
     logging.info(f"Max work group size: {device.max_work_group_size}")
 
-    return context, queue
+    # Retrieve device-specific information for chunk size determination
+    max_work_group_size = device.get_info(cl.device_info.MAX_WORK_GROUP_SIZE)
+    max_mem_alloc_size = device.get_info(cl.device_info.MAX_MEM_ALLOC_SIZE)
+    logging.info(f"Device Max Work Group Size: {max_work_group_size}")
+    logging.info(f"Device Max Memory Allocation Size: {max_mem_alloc_size} bytes")
+
+    return context, queue, max_work_group_size, max_mem_alloc_size
 
 def load_data(file_path, date_col="date", value_col="value", moving_average=None):
     try:
@@ -285,7 +316,7 @@ def load_previous_waves(num_points, output_dir, set_negatives_zero=False):
                 logging.warning(f"Error loading wave file {filename}. Skipping corrupted file.")
     return combined_wave
 
-def brute_force_sine_wave_search(observed_data, combined_wave, context, queue, ax, wave_count, desired_step_size='fast', set_negatives_zero=False, max_observed=1.0):
+def brute_force_sine_wave_search(observed_data, combined_wave, context, queue, ax, wave_count, desired_step_size='fast', set_negatives_zero=False, max_observed=1.0, max_work_group_size=LOCAL_WORK_SIZE, max_mem_alloc_size=134217728):
     amplitude_range = STEP_SIZES[desired_step_size]["amplitude"]
     frequency_range = STEP_SIZES[desired_step_size]["frequency"]
     phase_shift_range = STEP_SIZES[desired_step_size]["phase_shift"]
@@ -315,7 +346,7 @@ def brute_force_sine_wave_search(observed_data, combined_wave, context, queue, a
     observed_buf = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=observed_data)
     combined_buf = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=combined_wave)
 
-    chunk_size = 1024
+    chunk_size = determine_chunk_size(total_combinations, max_work_group_size, max_mem_alloc_size)
     num_chunks = int(np.ceil(total_combinations / chunk_size))
     logging.info(f"Wave {wave_count}: Processing parameter combinations in {num_chunks} chunks of size {chunk_size}.")
 
@@ -343,11 +374,11 @@ def brute_force_sine_wave_search(observed_data, combined_wave, context, queue, a
             phase_shifts_buf, scores_buf, np.int32(len(observed_data)), np.int32(zero_mode)
         )
 
-        if current_chunk_size >= LOCAL_WORK_SIZE:
-            if current_chunk_size % LOCAL_WORK_SIZE == 0:
-                local_work_size = (LOCAL_WORK_SIZE,)
+        if current_chunk_size >= max_work_group_size:
+            if current_chunk_size % max_work_group_size == 0:
+                local_work_size = (max_work_group_size,)
             else:
-                for lws in range(LOCAL_WORK_SIZE, 0, -1):
+                for lws in range(max_work_group_size, 0, -1):
                     if current_chunk_size % lws == 0:
                         local_work_size = (lws,)
                         break
@@ -406,9 +437,9 @@ def main():
     parser.add_argument('--moving-average', type=int, help="Optional moving average window for smoothing the data")
     parser.add_argument('--waves-dir', type=str, default="waves", help="Directory to store generated wave parameters")
     parser.add_argument('--log-dir', type=str, default="logs", help="Directory to store log files")
-    parser.add_argument('--desired-step-size', type=str, choices=['fine', 'normal', 'fast'], default="fast",
+    parser.add_argument('--desired-step-size', type=str, choices=['fine', 'normal', 'fast'], default="normal",
                         help="Desired step size mode for brute-force search phase")
-    parser.add_argument('--desired-refinement-step-size', type=str, choices=['fine', 'normal', 'fast', 'skip'], default="skip",
+    parser.add_argument('--desired-refinement-step-size', type=str, choices=['fine', 'normal', 'fast', 'skip'], default="normal",
                         help="Desired step size mode for refinement phase. Use 'skip' to skip refinement.")
     parser.add_argument('--no-plot', action='store_true', help="Disable real-time plotting")
     parser.add_argument('--wave-count', type=int, default=50, help="Number of waves to generate before exiting. Use 0 for infinite.")
@@ -428,7 +459,7 @@ def main():
     
     logging.info("Sines is Starting")
 
-    context, queue = setup_opencl()
+    context, queue, max_work_group_size, max_mem_alloc_size = setup_opencl()
     observed_data = load_data(
         args.data_file,
         date_col=args.date_col,
@@ -510,7 +541,9 @@ def main():
             observed_data, combined_wave, context, queue, ax, wave_count,
             desired_step_size=step_size,
             set_negatives_zero=args.set_negatives_zero,
-            max_observed=max_observed
+            max_observed=max_observed,
+            max_work_group_size=max_work_group_size,
+            max_mem_alloc_size=max_mem_alloc_size
         )
 
         if args.desired_refinement_step_size.lower() != 'skip':
@@ -518,7 +551,9 @@ def main():
                 top_candidates, observed_data, combined_wave, context, queue, ax, wave_count,
                 desired_refinement_step_size=args.desired_refinement_step_size,
                 set_negatives_zero=args.set_negatives_zero,
-                max_observed=max_observed
+                max_observed=max_observed,
+                max_work_group_size=max_work_group_size,
+                max_mem_alloc_size=max_mem_alloc_size
             )
         else:
             if top_candidates:
