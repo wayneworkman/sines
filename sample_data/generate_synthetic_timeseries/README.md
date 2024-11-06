@@ -28,19 +28,25 @@ python generate_sample_data.py
 ```
 
 ### Command-line Arguments
-| Argument         | Type   | Default         | Description                                              |
-|------------------|--------|-----------------|----------------------------------------------------------|
-| `--output_file`  | String | `sample_data.csv` | Path to save the generated sample data.                    |
-| `--start_date`   | String | `1818-01-01`    | Start date for the generated data in `YYYY-MM-DD` format.|
-| `--end_date`     | String | `2021-01-01`    | End date for the generated data in `YYYY-MM-DD` format.  |
-| `--num_waves`    | Int    | `5`             | Number of sine waves to combine in the generated data.   |
-| `--max_amplitude`| Float  | `150`           | Maximum amplitude for the generated sine waves.          |
-| `--max_frequency`| Float  | `0.001`         | Maximum frequency for the generated sine waves.          |
-| `--noise_std`    | Float  | `1`             | Standard deviation of noise added to the sine waves.     |
+| Argument                   | Type   | Default            | Description                                              |
+|----------------------------|--------|--------------------|----------------------------------------------------------|
+| `--training-output-file`   | String | `training_data.csv` | Path to save the generated training data CSV.            |
+| `--testing-output-file`    | String | `testing_data.csv` | Path to save the generated testing data CSV.             |
+| `--training-start-date`    | String | `2000-01-01`      | Start date for the training data in `YYYY-MM-DD` format. |
+| `--training-end-date`      | String | `2005-01-01`      | End date for the training data in `YYYY-MM-DD` format.   |
+| `--testing-start-date`     | String | `1990-01-01`      | Start date for the testing data in `YYYY-MM-DD` format.  |
+| `--testing-end-date`       | String | `2015-01-01`      | End date for the testing data in `YYYY-MM-DD` format.    |
+| `--waves-dir`              | String | `waves`           | Directory to store individual wave parameters.           |
+| `--num-waves`              | Int    | `5`               | Number of sine waves to combine in the generated data.   |
+| `--max-amplitude`          | Float  | `150`             | Maximum amplitude for the generated sine waves.          |
+| `--max-frequency`          | Float  | `0.001`           | Maximum frequency for the generated sine waves.          |
+| `--noise-std`              | Float  | `1`               | Standard deviation of noise added to the sine waves.     |
+| `--set-negatives-zero`     | Flag   | `False`           | Set sine wave values below zero to zero.                 |
+| `--parameters-dir`         | String | `run_parameters`  | Directory to store run parameters.                       |
 
 ### Example Command
 ```bash
-python generate_sample_data.py --output_file="synthetic_data.csv" --start_date="1800-01-01" --end_date="2020-01-01" --num_waves=7 --max_amplitude=100 --max_frequency=0.002 --noise_std=2
+python generate_sample_data.py --training-output-file="training_data.csv" --testing-output-file="testing_data.csv" --training-start-date="2000-01-01" --training-end-date="2005-01-01" --testing-start-date="1990-01-01" --testing-end-date="2015-01-01" --waves-dir="waves" --num-waves=7 --max-amplitude=100 --max-frequency=0.002 --noise-std=2 --set-negatives-zero
 ```
 
 This command will generate a synthetic dataset with:
@@ -49,7 +55,7 @@ This command will generate a synthetic dataset with:
 - A maximum frequency of 0.002
 - Gaussian noise with a standard deviation of 2
 
-The data will be saved to `synthetic_data.csv`.
+The training data will be saved to `training_data.csv`, and testing data to `testing_data.csv`.
 
 ## Output Format
 The generated CSV file will contain two columns:
@@ -59,9 +65,9 @@ The generated CSV file will contain two columns:
 Sample output format:
 ```
 date,value
-1800-01-01,23.5
-1800-01-02,25.1
-1800-01-03,21.8
+2000-01-01,23.5
+2000-01-02,25.1
+2000-01-03,21.8
 ...
 ```
 
