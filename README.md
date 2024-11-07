@@ -276,4 +276,4 @@ git push origin feature/your-feature-name
 
 ## License
 
-[Specify the license here, e.g., MIT License. If unchanged, keep as is.]
+This project is released under the MIT License. You are free to use, modify, and distribute it. However, portions of the sample_data provided are licensed differently. See the README in each of those directories as well as any licenses in those directories.
