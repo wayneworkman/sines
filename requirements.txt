@@ -2,5 +2,3 @@ pyopencl
 numpy
 pandas
 matplotlib
-requests
-psutil
