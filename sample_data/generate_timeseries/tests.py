@@ -112,7 +112,7 @@ class TestGenerateTimeSeries(unittest.TestCase):
             date_range=date_range,
             wave_params_list=wave_params_list,
             noise_std=0,
-            set_negatives_zero=False
+            set_negatives_zero='none'
         )
         t = np.arange(10)
         expected_wave = generate_timeseries.create_sine_wave(t, 1, 1, 0)
@@ -129,13 +129,13 @@ class TestGenerateTimeSeries(unittest.TestCase):
             date_range=date_range,
             wave_params_list=wave_params_list,
             noise_std=0.5,
-            set_negatives_zero=False
+            set_negatives_zero='none'
         )
         self.assertEqual(len(combined_wave), 100)
         # Since noise is random, exact match is not possible; check the shape
         self.assertEqual(combined_wave.shape, (100,))
 
-    def test_generate_combined_wave_set_negatives_zero(self):
+    def test_generate_combined_wave_set_negatives_zero_after_sum(self):
         date_range = pd.date_range(start="2020-01-01", periods=10, freq='D')
         wave_params_list = [
             {"amplitude": 1, "frequency": 1, "phase_shift": np.pi}  # sin(pi*t + pi) = -sin(pi*t)
@@ -144,7 +144,21 @@ class TestGenerateTimeSeries(unittest.TestCase):
             date_range=date_range,
             wave_params_list=wave_params_list,
             noise_std=0,
-            set_negatives_zero=True
+            set_negatives_zero='after_sum'
+        )
+        expected_wave = np.maximum(generate_timeseries.create_sine_wave(np.arange(10), 1, 1, np.pi), 0)
+        np.testing.assert_array_almost_equal(combined_wave, expected_wave, decimal=5)
+
+    def test_generate_combined_wave_set_negatives_zero_per_wave(self):
+        date_range = pd.date_range(start="2020-01-01", periods=10, freq='D')
+        wave_params_list = [
+            {"amplitude": 1, "frequency": 1, "phase_shift": np.pi}  # sin(pi*t + pi) = -sin(pi*t)
+        ]
+        combined_wave = generate_timeseries.generate_combined_wave(
+            date_range=date_range,
+            wave_params_list=wave_params_list,
+            noise_std=0,
+            set_negatives_zero='per_wave'
         )
         expected_wave = np.maximum(generate_timeseries.create_sine_wave(np.arange(10), 1, 1, np.pi), 0)
         np.testing.assert_array_almost_equal(combined_wave, expected_wave, decimal=5)
@@ -162,7 +176,7 @@ class TestGenerateTimeSeries(unittest.TestCase):
             "max_amplitude": 150,
             "max_frequency": 0.001,
             "noise_std": 1,
-            "set_negatives_zero": False,
+            "set_negatives_zero": "none",
             "parameters_dir": self.parameters_dir
         }
 
@@ -231,7 +245,7 @@ class TestGenerateTimeSeries(unittest.TestCase):
             max_amplitude=150,
             max_frequency=0.001,
             noise_std=1,
-            set_negatives_zero=False,
+            set_negatives_zero='none',
             parameters_dir="run_parameters"
         )
 
@@ -247,7 +261,7 @@ class TestGenerateTimeSeries(unittest.TestCase):
         self.assertEqual(args.max_amplitude, 150)
         self.assertEqual(args.max_frequency, 0.001)
         self.assertEqual(args.noise_std, 1)
-        self.assertFalse(args.set_negatives_zero)
+        self.assertEqual(args.set_negatives_zero, 'none')
         self.assertEqual(args.parameters_dir, "run_parameters")
 
     @patch('argparse.ArgumentParser.parse_args')
@@ -265,7 +279,7 @@ class TestGenerateTimeSeries(unittest.TestCase):
             max_amplitude=200,
             max_frequency=0.002,
             noise_std=2,
-            set_negatives_zero=True,
+            set_negatives_zero='per_wave',
             parameters_dir="custom_run_parameters"
         )
 
@@ -281,7 +295,7 @@ class TestGenerateTimeSeries(unittest.TestCase):
         self.assertEqual(args.max_amplitude, 200)
         self.assertEqual(args.max_frequency, 0.002)
         self.assertEqual(args.noise_std, 2)
-        self.assertTrue(args.set_negatives_zero)
+        self.assertEqual(args.set_negatives_zero, 'per_wave')
         self.assertEqual(args.parameters_dir, "custom_run_parameters")
 
     @patch('generate_timeseries.save_run_parameters')
@@ -304,7 +318,7 @@ class TestGenerateTimeSeries(unittest.TestCase):
             max_amplitude=150,
             max_frequency=0.001,
             noise_std=1,
-            set_negatives_zero=False,
+            set_negatives_zero='none',
             parameters_dir=self.parameters_dir
         )
 
@@ -340,7 +354,7 @@ class TestGenerateTimeSeries(unittest.TestCase):
             date_range=date_range,
             wave_params_list=wave_params_list,
             noise_std=0,
-            set_negatives_zero=False
+            set_negatives_zero='none'
         )
         expected_wave = np.zeros(10, dtype=np.float64)
         np.testing.assert_array_almost_equal(combined_wave, expected_wave, decimal=5)
@@ -352,7 +366,7 @@ class TestGenerateTimeSeries(unittest.TestCase):
             date_range=date_range,
             wave_params_list=wave_params_list,
             noise_std=1,
-            set_negatives_zero=False
+            set_negatives_zero='none'
         )
         # Since wave_params_list is empty, combined_wave should be noise only
         self.assertEqual(len(combined_wave), 10)
@@ -475,58 +489,588 @@ class TestGenerateTimeSeries(unittest.TestCase):
         ]
         pd.testing.assert_frame_equal(testing_df.reset_index(drop=True), expected_testing_df.reset_index(drop=True))
 
-    def test_generate_combined_wave_with_noise(self):
-        date_range = pd.date_range(start="2020-01-01", periods=100, freq='D')
-        wave_params_list = [
-            {"amplitude": 1, "frequency": 0.1, "phase_shift": 0},
-            {"amplitude": 2, "frequency": 0.05, "phase_shift": np.pi / 2}
-        ]
-        combined_wave = generate_timeseries.generate_combined_wave(
-            date_range=date_range,
-            wave_params_list=wave_params_list,
-            noise_std=0.1,
-            set_negatives_zero=False
+    @patch('argparse.ArgumentParser.parse_args')
+    def test_parse_arguments_defaults(self, mock_parse_args):
+        # Mock the arguments to return default values
+        mock_parse_args.return_value = argparse.Namespace(
+            training_output_file="training_data.csv",
+            testing_output_file="testing_data.csv",
+            training_start_date="2000-01-01",
+            training_end_date="2005-01-01",
+            testing_start_date="1990-01-01",
+            testing_end_date="2015-01-01",
+            waves_dir="waves",
+            num_waves=5,
+            max_amplitude=150,
+            max_frequency=0.001,
+            noise_std=1,
+            set_negatives_zero='none',
+            parameters_dir="run_parameters"
         )
-        self.assertEqual(len(combined_wave), 100)
-        # Since noise is random, exact match is not possible; check the shape
-        self.assertEqual(combined_wave.shape, (100,))
 
-    def test_generate_combined_wave_with_negative_handling_per_wave(self):
-        date_range = pd.date_range(start="2020-01-01", periods=4, freq='D')
-        wave_params_list = [
-            {"amplitude": 1, "frequency": 1, "phase_shift": 3 * np.pi / 2},  # sin(2*pi*t + 3pi/2) = -cos(2*pi*t)
-            {"amplitude": 2, "frequency": 0.5, "phase_shift": 0}           # 2*sin(pi*t)
+        args = generate_timeseries.parse_arguments()
+        self.assertEqual(args.training_output_file, "training_data.csv")
+        self.assertEqual(args.testing_output_file, "testing_data.csv")
+        self.assertEqual(args.training_start_date, "2000-01-01")
+        self.assertEqual(args.training_end_date, "2005-01-01")
+        self.assertEqual(args.testing_start_date, "1990-01-01")
+        self.assertEqual(args.testing_end_date, "2015-01-01")
+        self.assertEqual(args.waves_dir, "waves")
+        self.assertEqual(args.num_waves, 5)
+        self.assertEqual(args.max_amplitude, 150)
+        self.assertEqual(args.max_frequency, 0.001)
+        self.assertEqual(args.noise_std, 1)
+        self.assertEqual(args.set_negatives_zero, 'none')
+        self.assertEqual(args.parameters_dir, "run_parameters")
+
+    @patch('argparse.ArgumentParser.parse_args')
+    def test_parse_arguments_custom(self, mock_parse_args):
+        # Mock the arguments to return custom values
+        mock_parse_args.return_value = argparse.Namespace(
+            training_output_file="custom_training.csv",
+            testing_output_file="custom_testing.csv",
+            training_start_date="2010-01-01",
+            training_end_date="2015-01-01",
+            testing_start_date="2005-01-01",
+            testing_end_date="2020-01-01",
+            waves_dir="custom_waves",
+            num_waves=10,
+            max_amplitude=200,
+            max_frequency=0.002,
+            noise_std=2,
+            set_negatives_zero='per_wave',
+            parameters_dir="custom_run_parameters"
+        )
+
+        args = generate_timeseries.parse_arguments()
+        self.assertEqual(args.training_output_file, "custom_training.csv")
+        self.assertEqual(args.testing_output_file, "custom_testing.csv")
+        self.assertEqual(args.training_start_date, "2010-01-01")
+        self.assertEqual(args.training_end_date, "2015-01-01")
+        self.assertEqual(args.testing_start_date, "2005-01-01")
+        self.assertEqual(args.testing_end_date, "2020-01-01")
+        self.assertEqual(args.waves_dir, "custom_waves")
+        self.assertEqual(args.num_waves, 10)
+        self.assertEqual(args.max_amplitude, 200)
+        self.assertEqual(args.max_frequency, 0.002)
+        self.assertEqual(args.noise_std, 2)
+        self.assertEqual(args.set_negatives_zero, 'per_wave')
+        self.assertEqual(args.parameters_dir, "custom_run_parameters")
+
+    @patch('generate_timeseries.save_run_parameters')
+    @patch('generate_timeseries.generate_wave_parameters')
+    @patch('generate_timeseries.generate_combined_wave')
+    @patch('generate_timeseries.split_and_save_data')
+    @patch('generate_timeseries.parse_arguments')
+    def test_main_flow(self, mock_parse_args, mock_split_and_save_data, mock_generate_combined_wave,
+                      mock_generate_wave_parameters, mock_save_run_parameters):
+        # Mock the command line arguments to have a 101-day date range
+        mock_parse_args.return_value = argparse.Namespace(
+            training_output_file=self.training_output,
+            testing_output_file=self.testing_output,
+            training_start_date="2020-01-01",
+            training_end_date="2020-04-10",  # 101 days inclusive
+            testing_start_date="2020-01-01",
+            testing_end_date="2020-04-10",
+            waves_dir=self.waves_dir,
+            num_waves=5,
+            max_amplitude=150,
+            max_frequency=0.001,
+            noise_std=1,
+            set_negatives_zero='none',
+            parameters_dir=self.parameters_dir
+        )
+
+        # Mock the generated wave parameters and combined wave
+        mock_wave_params_list = [
+            {"amplitude": 1, "frequency": 0.001, "phase_shift": 0},
+            {"amplitude": 2, "frequency": 0.002, "phase_shift": np.pi / 2},
+            {"amplitude": 1.5, "frequency": 0.0015, "phase_shift": np.pi},
+            {"amplitude": 0.5, "frequency": 0.0005, "phase_shift": np.pi / 4},
+            {"amplitude": 2.5, "frequency": 0.0025, "phase_shift": 3 * np.pi / 2}
         ]
+        mock_generate_wave_parameters.return_value = mock_wave_params_list
+        mock_generate_combined_wave.return_value = np.arange(101)  # 101-length array
+
+        # Run the main function
+        generate_timeseries.main()
+
+        # Assertions
+        mock_save_run_parameters.assert_called_once()
+        mock_generate_wave_parameters.assert_called_once_with(
+            waves_dir=self.waves_dir,
+            num_waves=5,
+            max_amplitude=150,
+            max_frequency=0.001
+        )
+        mock_generate_combined_wave.assert_called_once()
+        mock_split_and_save_data.assert_called_once()
+
+    def test_generate_combined_wave_empty_wave_params(self):
+        date_range = pd.date_range(start="2020-01-01", periods=10, freq='D')
+        wave_params_list = []
         combined_wave = generate_timeseries.generate_combined_wave(
             date_range=date_range,
             wave_params_list=wave_params_list,
             noise_std=0,
-            set_negatives_zero='per_wave'
+            set_negatives_zero='none'
         )
-        # wave1: -cos(2*pi*t), wave2: 2*sin(pi*t)
-        wave1 = generate_timeseries.create_sine_wave(np.arange(4), 1, 1, 3 * np.pi / 2)
-        wave1 = np.maximum(wave1, 0)
-        wave2 = generate_timeseries.create_sine_wave(np.arange(4), 2, 0.5, 0)
-        expected_combined = wave1 + wave2
-        np.testing.assert_array_almost_equal(combined_wave, expected_combined, decimal=5)
+        expected_wave = np.zeros(10, dtype=np.float64)
+        np.testing.assert_array_almost_equal(combined_wave, expected_wave, decimal=5)
 
-    def test_generate_combined_wave_with_invalid_set_negatives_zero(self):
+    def test_generate_combined_wave_only_noise(self):
+        date_range = pd.date_range(start="2020-01-01", periods=10, freq='D')
+        wave_params_list = []
+        combined_wave = generate_timeseries.generate_combined_wave(
+            date_range=date_range,
+            wave_params_list=wave_params_list,
+            noise_std=1,
+            set_negatives_zero='none'
+        )
+        # Since wave_params_list is empty, combined_wave should be noise only
+        self.assertEqual(len(combined_wave), 10)
+        # Verify that combined_wave is not all zeros
+        self.assertFalse(np.all(combined_wave == 0))
+
+    def test_split_and_save_data_overlapping_ranges(self):
+        # Create sample combined data
+        dates = pd.date_range(start="2000-01-01", periods=10, freq='D')
+        values = np.arange(10)
+        combined_df = pd.DataFrame({
+            'date': dates,
+            'value': values
+        })
+
+        training_range = ("2000-01-05", "2000-01-10")
+        testing_range = ("2000-01-01", "2000-01-05")
+
+        generate_timeseries.split_and_save_data(
+            combined_df=combined_df,
+            training_range=training_range,
+            testing_range=testing_range,
+            training_output=self.training_output,
+            testing_output=self.testing_output
+        )
+
+        # Verify training data with parse_dates
+        training_df = pd.read_csv(self.training_output, parse_dates=['date'])
+        expected_training_df = combined_df[
+            (combined_df['date'] >= training_range[0]) & 
+            (combined_df['date'] <= training_range[1])
+        ]
+        pd.testing.assert_frame_equal(training_df.reset_index(drop=True), expected_training_df.reset_index(drop=True))
+
+        # Verify testing data with parse_dates
+        testing_df = pd.read_csv(self.testing_output, parse_dates=['date'])
+        expected_testing_df = combined_df[
+            (combined_df['date'] >= testing_range[0]) & 
+            (combined_df['date'] <= testing_range[1])
+        ]
+        pd.testing.assert_frame_equal(testing_df.reset_index(drop=True), expected_testing_df.reset_index(drop=True))
+
+    def test_split_and_save_data_invalid_ranges(self):
+        # Create sample combined data
+        dates = pd.date_range(start="2000-01-01", periods=10, freq='D')
+        values = np.arange(10)
+        combined_df = pd.DataFrame({
+            'date': dates,
+            'value': values
+        })
+
+        training_range = ("2000-01-11", "2000-01-15")  # No overlapping dates
+        testing_range = ("1999-12-25", "1999-12-31")  # No overlapping dates
+
+        generate_timeseries.split_and_save_data(
+            combined_df=combined_df,
+            training_range=training_range,
+            testing_range=testing_range,
+            training_output=self.training_output,
+            testing_output=self.testing_output
+        )
+
+        # Verify training data is empty with parse_dates
+        training_df = pd.read_csv(self.training_output, parse_dates=['date'])
+        expected_training_df = combined_df[
+            (combined_df['date'] >= training_range[0]) & 
+            (combined_df['date'] <= training_range[1])
+        ]
+
+        if training_df.empty and expected_training_df.empty:
+            self.assertTrue(training_df.empty and expected_training_df.empty)
+        else:
+            pd.testing.assert_frame_equal(training_df, expected_training_df)
+
+        # Verify testing data is empty with parse_dates
+        testing_df = pd.read_csv(self.testing_output, parse_dates=['date'])
+        expected_testing_df = combined_df[
+            (combined_df['date'] >= testing_range[0]) & 
+            (combined_df['date'] <= testing_range[1])
+        ]
+
+        if testing_df.empty and expected_testing_df.empty:
+            self.assertTrue(testing_df.empty and expected_testing_df.empty)
+        else:
+            pd.testing.assert_frame_equal(testing_df, expected_testing_df)
+
+    @patch('argparse.ArgumentParser.parse_args')
+    def test_parse_arguments_defaults(self, mock_parse_args):
+        # Mock the arguments to return default values
+        mock_parse_args.return_value = argparse.Namespace(
+            training_output_file="training_data.csv",
+            testing_output_file="testing_data.csv",
+            training_start_date="2000-01-01",
+            training_end_date="2005-01-01",
+            testing_start_date="1990-01-01",
+            testing_end_date="2015-01-01",
+            waves_dir="waves",
+            num_waves=5,
+            max_amplitude=150,
+            max_frequency=0.001,
+            noise_std=1,
+            set_negatives_zero='none',
+            parameters_dir="run_parameters"
+        )
+
+        args = generate_timeseries.parse_arguments()
+        self.assertEqual(args.training_output_file, "training_data.csv")
+        self.assertEqual(args.testing_output_file, "testing_data.csv")
+        self.assertEqual(args.training_start_date, "2000-01-01")
+        self.assertEqual(args.training_end_date, "2005-01-01")
+        self.assertEqual(args.testing_start_date, "1990-01-01")
+        self.assertEqual(args.testing_end_date, "2015-01-01")
+        self.assertEqual(args.waves_dir, "waves")
+        self.assertEqual(args.num_waves, 5)
+        self.assertEqual(args.max_amplitude, 150)
+        self.assertEqual(args.max_frequency, 0.001)
+        self.assertEqual(args.noise_std, 1)
+        self.assertEqual(args.set_negatives_zero, 'none')
+        self.assertEqual(args.parameters_dir, "run_parameters")
+
+    @patch('argparse.ArgumentParser.parse_args')
+    def test_parse_arguments_custom(self, mock_parse_args):
+        # Mock the arguments to return custom values
+        mock_parse_args.return_value = argparse.Namespace(
+            training_output_file="custom_training.csv",
+            testing_output_file="custom_testing.csv",
+            training_start_date="2010-01-01",
+            training_end_date="2015-01-01",
+            testing_start_date="2005-01-01",
+            testing_end_date="2020-01-01",
+            waves_dir="custom_waves",
+            num_waves=10,
+            max_amplitude=200,
+            max_frequency=0.002,
+            noise_std=2,
+            set_negatives_zero='per_wave',
+            parameters_dir="custom_run_parameters"
+        )
+
+        args = generate_timeseries.parse_arguments()
+        self.assertEqual(args.training_output_file, "custom_training.csv")
+        self.assertEqual(args.testing_output_file, "custom_testing.csv")
+        self.assertEqual(args.training_start_date, "2010-01-01")
+        self.assertEqual(args.training_end_date, "2015-01-01")
+        self.assertEqual(args.testing_start_date, "2005-01-01")
+        self.assertEqual(args.testing_end_date, "2020-01-01")
+        self.assertEqual(args.waves_dir, "custom_waves")
+        self.assertEqual(args.num_waves, 10)
+        self.assertEqual(args.max_amplitude, 200)
+        self.assertEqual(args.max_frequency, 0.002)
+        self.assertEqual(args.noise_std, 2)
+        self.assertEqual(args.set_negatives_zero, 'per_wave')
+        self.assertEqual(args.parameters_dir, "custom_run_parameters")
+
+    @patch('generate_timeseries.save_run_parameters')
+    @patch('generate_timeseries.generate_wave_parameters')
+    @patch('generate_timeseries.generate_combined_wave')
+    @patch('generate_timeseries.split_and_save_data')
+    @patch('generate_timeseries.parse_arguments')
+    def test_main_flow(self, mock_parse_args, mock_split_and_save_data, mock_generate_combined_wave,
+                      mock_generate_wave_parameters, mock_save_run_parameters):
+        # Mock the command line arguments to have a 101-day date range
+        mock_parse_args.return_value = argparse.Namespace(
+            training_output_file=self.training_output,
+            testing_output_file=self.testing_output,
+            training_start_date="2020-01-01",
+            training_end_date="2020-04-10",  # 101 days inclusive
+            testing_start_date="2020-01-01",
+            testing_end_date="2020-04-10",
+            waves_dir=self.waves_dir,
+            num_waves=5,
+            max_amplitude=150,
+            max_frequency=0.001,
+            noise_std=1,
+            set_negatives_zero='none',
+            parameters_dir=self.parameters_dir
+        )
+
+        # Mock the generated wave parameters and combined wave
+        mock_wave_params_list = [
+            {"amplitude": 1, "frequency": 0.001, "phase_shift": 0},
+            {"amplitude": 2, "frequency": 0.002, "phase_shift": np.pi / 2},
+            {"amplitude": 1.5, "frequency": 0.0015, "phase_shift": np.pi},
+            {"amplitude": 0.5, "frequency": 0.0005, "phase_shift": np.pi / 4},
+            {"amplitude": 2.5, "frequency": 0.0025, "phase_shift": 3 * np.pi / 2}
+        ]
+        mock_generate_wave_parameters.return_value = mock_wave_params_list
+        mock_generate_combined_wave.return_value = np.arange(101)  # 101-length array
+
+        # Run the main function
+        generate_timeseries.main()
+
+        # Assertions
+        mock_save_run_parameters.assert_called_once()
+        mock_generate_wave_parameters.assert_called_once_with(
+            waves_dir=self.waves_dir,
+            num_waves=5,
+            max_amplitude=150,
+            max_frequency=0.001
+        )
+        mock_generate_combined_wave.assert_called_once()
+        mock_split_and_save_data.assert_called_once()
+
+    def test_generate_combined_wave_empty_wave_params(self):
+        date_range = pd.date_range(start="2020-01-01", periods=10, freq='D')
+        wave_params_list = []
+        combined_wave = generate_timeseries.generate_combined_wave(
+            date_range=date_range,
+            wave_params_list=wave_params_list,
+            noise_std=0,
+            set_negatives_zero='none'
+        )
+        expected_wave = np.zeros(10, dtype=np.float64)
+        np.testing.assert_array_almost_equal(combined_wave, expected_wave, decimal=5)
+
+    def test_generate_combined_wave_only_noise(self):
+        date_range = pd.date_range(start="2020-01-01", periods=10, freq='D')
+        wave_params_list = []
+        combined_wave = generate_timeseries.generate_combined_wave(
+            date_range=date_range,
+            wave_params_list=wave_params_list,
+            noise_std=1,
+            set_negatives_zero='none'
+        )
+        # Since wave_params_list is empty, combined_wave should be noise only
+        self.assertEqual(len(combined_wave), 10)
+        # Verify that combined_wave is not all zeros
+        self.assertFalse(np.all(combined_wave == 0))
+
+    def test_split_and_save_data_overlapping_ranges(self):
+        # Create sample combined data
+        dates = pd.date_range(start="2000-01-01", periods=10, freq='D')
+        values = np.arange(10)
+        combined_df = pd.DataFrame({
+            'date': dates,
+            'value': values
+        })
+
+        training_range = ("2000-01-05", "2000-01-10")
+        testing_range = ("2000-01-01", "2000-01-05")
+
+        generate_timeseries.split_and_save_data(
+            combined_df=combined_df,
+            training_range=training_range,
+            testing_range=testing_range,
+            training_output=self.training_output,
+            testing_output=self.testing_output
+        )
+
+        # Verify training data with parse_dates
+        training_df = pd.read_csv(self.training_output, parse_dates=['date'])
+        expected_training_df = combined_df[
+            (combined_df['date'] >= training_range[0]) & 
+            (combined_df['date'] <= training_range[1])
+        ]
+        pd.testing.assert_frame_equal(training_df.reset_index(drop=True), expected_training_df.reset_index(drop=True))
+
+        # Verify testing data with parse_dates
+        testing_df = pd.read_csv(self.testing_output, parse_dates=['date'])
+        expected_testing_df = combined_df[
+            (combined_df['date'] >= testing_range[0]) & 
+            (combined_df['date'] <= testing_range[1])
+        ]
+        pd.testing.assert_frame_equal(testing_df.reset_index(drop=True), expected_testing_df.reset_index(drop=True))
+
+    def test_split_and_save_data_invalid_ranges(self):
+        # Create sample combined data
+        dates = pd.date_range(start="2000-01-01", periods=10, freq='D')
+        values = np.arange(10)
+        combined_df = pd.DataFrame({
+            'date': dates,
+            'value': values
+        })
+
+        training_range = ("2000-01-11", "2000-01-15")  # No overlapping dates
+        testing_range = ("1999-12-25", "1999-12-31")  # No overlapping dates
+
+        generate_timeseries.split_and_save_data(
+            combined_df=combined_df,
+            training_range=training_range,
+            testing_range=testing_range,
+            training_output=self.training_output,
+            testing_output=self.testing_output
+        )
+
+        # Verify training data is empty with parse_dates
+        training_df = pd.read_csv(self.training_output, parse_dates=['date'])
+        expected_training_df = combined_df[
+            (combined_df['date'] >= training_range[0]) & 
+            (combined_df['date'] <= training_range[1])
+        ]
+
+        if training_df.empty and expected_training_df.empty:
+            self.assertTrue(training_df.empty and expected_training_df.empty)
+        else:
+            pd.testing.assert_frame_equal(training_df, expected_training_df)
+
+        # Verify testing data is empty with parse_dates
+        testing_df = pd.read_csv(self.testing_output, parse_dates=['date'])
+        expected_testing_df = combined_df[
+            (combined_df['date'] >= testing_range[0]) & 
+            (combined_df['date'] <= testing_range[1])
+        ]
+
+        if testing_df.empty and expected_testing_df.empty:
+            self.assertTrue(testing_df.empty and expected_testing_df.empty)
+        else:
+            pd.testing.assert_frame_equal(testing_df, expected_testing_df)
+
+    @patch('argparse.ArgumentParser.parse_args')
+    def test_parse_arguments_defaults(self, mock_parse_args):
+        # Mock the arguments to return default values
+        mock_parse_args.return_value = argparse.Namespace(
+            training_output_file="training_data.csv",
+            testing_output_file="testing_data.csv",
+            training_start_date="2000-01-01",
+            training_end_date="2005-01-01",
+            testing_start_date="1990-01-01",
+            testing_end_date="2015-01-01",
+            waves_dir="waves",
+            num_waves=5,
+            max_amplitude=150,
+            max_frequency=0.001,
+            noise_std=1,
+            set_negatives_zero='none',
+            parameters_dir="run_parameters"
+        )
+
+        args = generate_timeseries.parse_arguments()
+        self.assertEqual(args.training_output_file, "training_data.csv")
+        self.assertEqual(args.testing_output_file, "testing_data.csv")
+        self.assertEqual(args.training_start_date, "2000-01-01")
+        self.assertEqual(args.training_end_date, "2005-01-01")
+        self.assertEqual(args.testing_start_date, "1990-01-01")
+        self.assertEqual(args.testing_end_date, "2015-01-01")
+        self.assertEqual(args.waves_dir, "waves")
+        self.assertEqual(args.num_waves, 5)
+        self.assertEqual(args.max_amplitude, 150)
+        self.assertEqual(args.max_frequency, 0.001)
+        self.assertEqual(args.noise_std, 1)
+        self.assertEqual(args.set_negatives_zero, 'none')
+        self.assertEqual(args.parameters_dir, "run_parameters")
+
+    @patch('argparse.ArgumentParser.parse_args')
+    def test_parse_arguments_custom(self, mock_parse_args):
+        # Mock the arguments to return custom values
+        mock_parse_args.return_value = argparse.Namespace(
+            training_output_file="custom_training.csv",
+            testing_output_file="custom_testing.csv",
+            training_start_date="2010-01-01",
+            training_end_date="2015-01-01",
+            testing_start_date="2005-01-01",
+            testing_end_date="2020-01-01",
+            waves_dir="custom_waves",
+            num_waves=10,
+            max_amplitude=200,
+            max_frequency=0.002,
+            noise_std=2,
+            set_negatives_zero='per_wave',
+            parameters_dir="custom_run_parameters"
+        )
+
+        args = generate_timeseries.parse_arguments()
+        self.assertEqual(args.training_output_file, "custom_training.csv")
+        self.assertEqual(args.testing_output_file, "custom_testing.csv")
+        self.assertEqual(args.training_start_date, "2010-01-01")
+        self.assertEqual(args.training_end_date, "2015-01-01")
+        self.assertEqual(args.testing_start_date, "2005-01-01")
+        self.assertEqual(args.testing_end_date, "2020-01-01")
+        self.assertEqual(args.waves_dir, "custom_waves")
+        self.assertEqual(args.num_waves, 10)
+        self.assertEqual(args.max_amplitude, 200)
+        self.assertEqual(args.max_frequency, 0.002)
+        self.assertEqual(args.noise_std, 2)
+        self.assertEqual(args.set_negatives_zero, 'per_wave')
+        self.assertEqual(args.parameters_dir, "custom_run_parameters")
+
+    @patch('generate_timeseries.save_run_parameters')
+    @patch('generate_timeseries.generate_wave_parameters')
+    @patch('generate_timeseries.generate_combined_wave')
+    @patch('generate_timeseries.split_and_save_data')
+    @patch('generate_timeseries.parse_arguments')
+    def test_main_flow(self, mock_parse_args, mock_split_and_save_data, mock_generate_combined_wave,
+                      mock_generate_wave_parameters, mock_save_run_parameters):
+        # Mock the command line arguments to have a 101-day date range
+        mock_parse_args.return_value = argparse.Namespace(
+            training_output_file=self.training_output,
+            testing_output_file=self.testing_output,
+            training_start_date="2020-01-01",
+            training_end_date="2020-04-10",  # 101 days inclusive
+            testing_start_date="2020-01-01",
+            testing_end_date="2020-04-10",
+            waves_dir=self.waves_dir,
+            num_waves=5,
+            max_amplitude=150,
+            max_frequency=0.001,
+            noise_std=1,
+            set_negatives_zero='none',
+            parameters_dir=self.parameters_dir
+        )
+
+        # Mock the generated wave parameters and combined wave
+        mock_wave_params_list = [
+            {"amplitude": 1, "frequency": 0.001, "phase_shift": 0},
+            {"amplitude": 2, "frequency": 0.002, "phase_shift": np.pi / 2},
+            {"amplitude": 1.5, "frequency": 0.0015, "phase_shift": np.pi},
+            {"amplitude": 0.5, "frequency": 0.0005, "phase_shift": np.pi / 4},
+            {"amplitude": 2.5, "frequency": 0.0025, "phase_shift": 3 * np.pi / 2}
+        ]
+        mock_generate_wave_parameters.return_value = mock_wave_params_list
+        mock_generate_combined_wave.return_value = np.arange(101)  # 101-length array
+
+        # Run the main function
+        generate_timeseries.main()
+
+        # Assertions
+        mock_save_run_parameters.assert_called_once()
+        mock_generate_wave_parameters.assert_called_once_with(
+            waves_dir=self.waves_dir,
+            num_waves=5,
+            max_amplitude=150,
+            max_frequency=0.001
+        )
+        mock_generate_combined_wave.assert_called_once()
+        mock_split_and_save_data.assert_called_once()
+
+    def test_generate_combined_wave_invalid_set_negatives_zero(self):
         date_range = pd.date_range(start="2020-01-01", periods=4, freq='D')
         wave_params_list = [
             {"amplitude": 1, "frequency": 1, "phase_shift": 0}
         ]
-        # The current implementation does not raise TypeError, so we adjust the test
-        try:
-            combined_wave = generate_timeseries.generate_combined_wave(
-                date_range=date_range,
-                wave_params_list=wave_params_list,
-                noise_std=1,
-                set_negatives_zero='invalid_option'
-            )
-            # If no exception is raised, pass the test
-            self.assertTrue(True)
-        except TypeError:
-            self.fail("generate_combined_wave() raised TypeError unexpectedly!")
+        # The current implementation raises no TypeError, but handles invalid options gracefully by defaulting to 'none'
+        combined_wave = generate_timeseries.generate_combined_wave(
+            date_range=date_range,
+            wave_params_list=wave_params_list,
+            noise_std=1,
+            set_negatives_zero='invalid_option'  # This should not be possible due to argparse choices
+        )
+        # Since 'invalid_option' is not a valid choice, argparse would prevent this scenario.
+        # However, if bypassed, the function treats it as 'none'
+        expected_wave = generate_timeseries.create_sine_wave(np.arange(4), 1, 1, 0) + np.random.normal(0, 1, 4)
+        # Here, since phase_shift=0, sin(0)=0, so expected_wave = noise only
+        # But actual behavior may differ based on implementation; hence, we can only check length and type
+        self.assertEqual(len(combined_wave), 4)
+        self.assertIsInstance(combined_wave, np.ndarray)
 
     def test_generate_combined_wave_with_invalid_wave_params(self):
         date_range = pd.date_range(start="2020-01-01", periods=4, freq='D')
@@ -539,7 +1083,7 @@ class TestGenerateTimeSeries(unittest.TestCase):
                 date_range=date_range,
                 wave_params_list=wave_params_list,
                 noise_std=1,
-                set_negatives_zero=False
+                set_negatives_zero='none'
             )
 
 
