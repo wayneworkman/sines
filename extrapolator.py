@@ -6,6 +6,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import logging
+import shlex
+from datetime import datetime
 
 def load_observed_data(file_path, date_col='Timestamp', value_col='Value'):
     """
@@ -72,6 +74,7 @@ def load_sine_waves(waves_dir):
         raise ValueError(f"No valid sine wave JSON files found in '{waves_dir}'.")
     return sine_waves
 
+
 def calculate_average_timespan(dates):
     """
     Calculate the average timespan difference between consecutive data points.
@@ -89,6 +92,7 @@ def calculate_average_timespan(dates):
     avg_timespan = time_deltas.dt.total_seconds().mean() / 86400  # Convert to days
     logging.info(f"Average timespan between data points: {avg_timespan:.2f} days.")
     return avg_timespan
+
 
 def generate_combined_sine_wave(sine_waves, indices, set_negatives_zero='after_sum'):
     """
@@ -122,6 +126,7 @@ def generate_combined_sine_wave(sine_waves, indices, set_negatives_zero='after_s
         combined_wave = np.maximum(combined_wave, 0)  # Set negative values to zero after sum
     
     return combined_wave
+
 
 def plot_data(dates, indices, data_values, combined_wave, extended_dates=None):
     """
@@ -192,10 +197,11 @@ def plot_data(dates, indices, data_values, combined_wave, extended_dates=None):
     plt.tight_layout()
     plt.show()
 
+
 def main():
     parser = argparse.ArgumentParser(description='Extrapolator: Combine Sine Waves with Observed Data')
     parser.add_argument('--data-file', type=str, required=True, help='Path to the observed data CSV file')
-    parser.add_argument('--waves-dir', type=str, default='waves', help='Directory containing sine wave JSON files (default: waves)')
+    parser.add_argument('--project-dir', type=str, required=True, help='Directory containing project data including waves and logs')
     parser.add_argument('--date-col', type=str, default='Timestamp', help='Name of the column containing date information (default: Timestamp)')
     parser.add_argument('--value-col', type=str, default='Value', help='Name of the column containing observed values (default: Value)')
     parser.add_argument('--set-negatives-zero', type=str, choices=['after_sum', 'per_wave', 'none'], default='none',
@@ -211,10 +217,28 @@ def main():
     
     args = parser.parse_args()
     
-    # Configure Logging
-    logging.basicConfig(level=logging.ERROR, format='%(levelname)s: %(message)s')
-    # If you want more verbosity, you can set it to INFO or DEBUG
-    # logging.getLogger().setLevel(logging.DEBUG)
+    # Replace waves-dir and log-dir with project-dir
+    project_dir = args.project_dir
+    waves_dir = os.path.join(project_dir, "waves")
+    log_dir = os.path.join(project_dir, "logs")
+    
+    # Create project directories if they don't exist
+    os.makedirs(waves_dir, exist_ok=True)
+    os.makedirs(log_dir, exist_ok=True)
+    
+    # Setup logging after setting project directories
+    log_filename = os.path.join(log_dir, datetime.now().strftime("%Y-%m-%d_%H-%M-%S.log"))
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s",
+                        handlers=[logging.FileHandler(log_filename), logging.StreamHandler()])
+    
+    # **Special Command Log Entry**
+    command_log_path = os.path.join(log_dir, "command_log.log")
+    with open(command_log_path, "a") as cmd_log_file:
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S,%f")[:-3]
+        command = 'python3 ' + 'extrapolator.py ' + ' '.join(shlex.quote(arg) for arg in sys.argv[1:])
+        cmd_log_file.write(f"{timestamp} {command}\n")
+    
+    logging.info("Extrapolator is Starting")
     
     # Load Observed Data
     dates, indices, data_values = load_observed_data(args.data_file, date_col=args.date_col, value_col=args.value_col)
@@ -229,8 +253,8 @@ def main():
     avg_timespan = calculate_average_timespan(dates)
     
     # Load Sine Waves
-    sine_waves = load_sine_waves(args.waves_dir)
-    logging.info(f"Loaded {len(sine_waves)} sine wave(s) from '{args.waves_dir}'.")
+    sine_waves = load_sine_waves(waves_dir)
+    logging.info(f"Loaded {len(sine_waves)} sine wave(s) from '{waves_dir}'.")
     
     # Calculate number of steps to predict before and after based on percentage
     total_steps = len(data_values)
@@ -296,5 +320,7 @@ def main():
               combined_wave_extended,
               extended_dates=extended_dates_dict if extended_dates_dict else None)
 
+
 if __name__ == '__main__':
+    import sys  # Needed for command log entry
     main()
