@@ -115,7 +115,7 @@ The `extrapolator.py` script reconstructs and extrapolates the data using genera
 
 **Example Usage**:
 ```
-python3 extrapolator.py --data-file sample_data/sunspots/SN_d_tot_V2.0.csv  --project-dir ~/sunspots --date-col date --value-col sunspot --set-negatives-zero after_sum
+python3 extrapolator.py --data-file sample_data/sunspots/SN_d_tot_V2.0.csv --project-dir ~/sunspots --date-col date --value-col sunspot --set-negatives-zero after_sum
 ```
 
 #### Arguments
