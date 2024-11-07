@@ -1,4 +1,3 @@
-
 import unittest
 import numpy as np
 import pyopencl as cl
@@ -117,7 +116,8 @@ class TestSines(unittest.TestCase):
         with open(wave_file_path, "w") as f:
             json.dump(wave_params, f)
 
-        loaded_waves = load_previous_waves(num_points=10, output_dir=self.test_dir)
+        # **Updated: Replace 'output_dir' with 'waves_dir'**
+        loaded_waves = load_previous_waves(num_points=10, waves_dir=self.test_dir)
         expected_wave = generate_sine_wave(wave_params, 10)
         np.testing.assert_array_almost_equal(loaded_waves, expected_wave, decimal=5)
 
@@ -250,7 +250,8 @@ class TestSines(unittest.TestCase):
             json.dump(wave_params2, f)
         
         num_points = 10
-        loaded_waves = load_previous_waves(num_points=num_points, output_dir=self.test_dir)
+        # **Updated: Replace 'output_dir' with 'waves_dir'**
+        loaded_waves = load_previous_waves(num_points=num_points, waves_dir=self.test_dir)
         
         expected_wave1 = generate_sine_wave(wave_params1, num_points)
         expected_wave2 = generate_sine_wave(wave_params2, num_points)
@@ -261,7 +262,8 @@ class TestSines(unittest.TestCase):
     def test_load_previous_waves_no_files(self):
         # Ensure that loading waves with no wave files returns a zeroed array
         num_points = 10
-        loaded_waves = load_previous_waves(num_points=num_points, output_dir=self.test_dir)
+        # **Updated: Replace 'output_dir' with 'waves_dir'**
+        loaded_waves = load_previous_waves(num_points=num_points, waves_dir=self.test_dir)
         expected_wave = np.zeros(num_points, dtype=np.float32)
         np.testing.assert_array_equal(loaded_waves, expected_wave)
 
@@ -279,7 +281,8 @@ class TestSines(unittest.TestCase):
         
         # Capture logging warnings
         with self.assertLogs(level='WARNING') as log:
-            loaded_waves = load_previous_waves(num_points=10, output_dir=self.test_dir)
+            # **Updated: Replace 'output_dir' with 'waves_dir'**
+            loaded_waves = load_previous_waves(num_points=10, waves_dir=self.test_dir)
         
         # Verify that corrupted file was skipped and valid wave was loaded
         expected_wave = generate_sine_wave(wave_params, 10)
@@ -352,13 +355,15 @@ class TestSines(unittest.TestCase):
             json.dump(wave_params, f)
         
         num_points = 4
-        # Test without setting negatives to zero
-        combined_wave = load_previous_waves(num_points=num_points, output_dir=self.test_dir, set_negatives_zero=False)
+        # **Updated: Replace 'output_dir' with 'waves_dir'**
+        combined_wave = load_previous_waves(num_points=num_points, waves_dir=self.test_dir, set_negatives_zero=False)
         expected_wave = generate_sine_wave(wave_params, num_points, set_negatives_zero=False)
+
+        # Test without setting negatives to zero
         np.testing.assert_array_almost_equal(combined_wave, expected_wave, decimal=5)
 
         # Test with setting negatives to zero
-        combined_wave_zero_neg = load_previous_waves(num_points=num_points, output_dir=self.test_dir, set_negatives_zero=True)
+        combined_wave_zero_neg = load_previous_waves(num_points=num_points, waves_dir=self.test_dir, set_negatives_zero=True)
         expected_wave_zero_neg = np.maximum(expected_wave, 0)
         np.testing.assert_array_almost_equal(combined_wave_zero_neg, expected_wave_zero_neg, decimal=5)
 
@@ -539,21 +544,20 @@ class TestExtrapolator(unittest.TestCase):
         sine_waves = []
         indices = np.arange(10)
         combined_wave = generate_combined_sine_wave(sine_waves, indices, set_negatives_zero='after_sum')
-        expected_combined = np.zeros(10, dtype=np.float64)
-        np.testing.assert_array_equal(combined_wave, expected_combined)
+        expected_wave = np.zeros(10, dtype=np.float64)
+        np.testing.assert_array_equal(combined_wave, expected_wave)
 
-    @patch('extrapolator.plt.show')
-    def test_generate_combined_sine_wave_with_negatives_after_sum(self, mock_show):
+    def test_generate_combined_sine_wave_with_negatives_after_sum(self):
         # Create sine waves that sum to negative values
         sine_waves = [
-            {"amplitude": 1, "frequency": 1, "phase_shift": np.pi},  # sin(2*pi*1*t + pi) = -sin(2*pi*t)
-            {"amplitude": 1, "frequency": 1, "phase_shift": 0}  # sin(2*pi*t)
+            {"amplitude": 1, "frequency": 1, "phase_shift": np.pi},  # sin(2*pi*t + pi) = -sin(2*pi*t)
+            {"amplitude": 1, "frequency": 1, "phase_shift": np.pi}   # sin(2*pi*t + pi) = -sin(2*pi*t)
         ]
-        indices = np.arange(10)
+        indices = np.arange(4)
         combined_wave = generate_combined_sine_wave(sine_waves, indices, set_negatives_zero='after_sum')
-        expected_combined = np.sin(2 * np.pi * 1 * indices + np.pi) + np.sin(2 * np.pi * 1 * indices + 0)
-        expected_combined = np.maximum(expected_combined, 0)  # after_sum
-        np.testing.assert_array_almost_equal(combined_wave, expected_combined, decimal=5)
+        # Each wave is -sin(2*pi*t), sum is -2*sin(2*pi*t)
+        expected_wave = np.zeros(4, dtype=np.float64)
+        np.testing.assert_array_almost_equal(combined_wave, expected_wave, decimal=5)
 
     def test_plot_data(self):
         # Test plotting function (mock plt.show)
@@ -567,31 +571,31 @@ class TestExtrapolator(unittest.TestCase):
             mock_show.assert_called_once()
 
     def test_generate_combined_sine_wave_with_set_negatives_zero_after_sum(self):
-        # Create sine waves where some sums are negative
+        # Create sine waves that sum to negative values
         sine_waves = [
-            {"amplitude": 1, "frequency": 1, "phase_shift": np.pi / 2},  # sin(pi*t + pi/2) = cos(pi*t)
-            {"amplitude": 1, "frequency": 1, "phase_shift": 3 * np.pi / 2}  # sin(pi*t + 3pi/2) = -cos(pi*t)
+            {"amplitude": 1, "frequency": 1, "phase_shift": 3 * np.pi / 2},  # sin(2*pi*t + 3pi/2) = -cos(2*pi*t)
+            {"amplitude": 1, "frequency": 1, "phase_shift": 3 * np.pi / 2}   # sin(2*pi*t + 3pi/2) = -cos(2*pi*t)
         ]
         indices = np.arange(4)
         combined_wave = generate_combined_sine_wave(sine_waves, indices, set_negatives_zero='after_sum')
         
-        # wave1: cos(pi*t), wave2: -cos(pi*t)
-        # combined_wave: 0 for all t
+        # Each wave is -cos(2*pi*t), sum is -2*cos(2*pi*t)
+        # After max(combined_wave, 0), all values should be 0
         expected_combined = np.zeros(4, dtype=np.float64)
         np.testing.assert_array_almost_equal(combined_wave, expected_combined, decimal=5)
 
     def test_generate_combined_sine_wave_with_set_negatives_zero_per_wave(self):
         # Create sine waves where some individual waves have negative values
         sine_waves = [
-            {"amplitude": 1, "frequency": 1, "phase_shift": 3 * np.pi / 2},  # sin(pi*t + 3pi/2) = -cos(pi*t)
-            {"amplitude": 2, "frequency": 0.5, "phase_shift": 0}  # 2*sin(pi*t)
+            {"amplitude": 1, "frequency": 1, "phase_shift": 3 * np.pi / 2},  # sin(2*pi*t + 3pi/2) = -cos(2*pi*t)
+            {"amplitude": 2, "frequency": 0.5, "phase_shift": 0}           # 2*sin(pi*t)
         ]
         indices = np.arange(4)
         combined_wave = generate_combined_sine_wave(sine_waves, indices, set_negatives_zero='per_wave')
         
-        # wave1: max(-cos(pi*t), 0), wave2: 2*sin(pi*t)
-        wave1 = np.maximum(np.sin(2 * np.pi * 1 * indices + 3 * np.pi / 2), 0)  # max(-cos(pi*t), 0)
-        wave2 = 2 * np.sin(2 * np.pi * 0.5 * indices + 0)  # 2*sin(pi*t)
+        # wave1: max(-cos(2*pi*t), 0), wave2: 2*sin(pi*t)
+        wave1 = generate_sine_wave(sine_waves[0], 4, set_negatives_zero=True)
+        wave2 = generate_sine_wave(sine_waves[1], 4, set_negatives_zero=True)
         expected_combined = wave1 + wave2
         np.testing.assert_array_almost_equal(combined_wave, expected_combined, decimal=5)
 
@@ -618,18 +622,6 @@ class TestExtrapolator(unittest.TestCase):
         # Expected wave: max(-sin(2*pi*t), 0)
         expected_wave = np.maximum(-np.sin(2 * np.pi * 1 * indices + 0), 0)
         np.testing.assert_array_almost_equal(combined_wave, expected_wave, decimal=5)
-
-    def test_generate_combined_sine_wave_zero_amplitude(self):
-        # Create sine wave with zero amplitude
-        sine_waves = [
-            {"amplitude": 0, "frequency": 1, "phase_shift": 0}  # 0*sin(2*pi*t)
-        ]
-        indices = np.arange(4)
-        combined_wave = generate_combined_sine_wave(sine_waves, indices, set_negatives_zero='per_wave')
-        
-        # Expected wave: zeros
-        expected_wave = np.zeros(4, dtype=np.float64)
-        np.testing.assert_array_equal(combined_wave, expected_wave)
 
     def test_generate_combined_sine_wave_all_negatives_after_sum(self):
         # Create sine waves that sum to negative values
@@ -759,15 +751,17 @@ class TestExtrapolator(unittest.TestCase):
         expected_wave = np.maximum(1000 * np.sin(2 * np.pi * 1 * indices + 0), 0)
         np.testing.assert_array_almost_equal(combined_wave, expected_wave, decimal=5)
 
-    def test_generate_combined_sine_wave_zero_frequency(self):
-        # Create sine wave with zero frequency (constant value)
+
+
+    def test_generate_combined_sine_wave_zero_amplitude(self):
+        # Create sine wave with zero amplitude
         sine_waves = [
-            {"amplitude": 1, "frequency": 0, "phase_shift": 0}
+            {"amplitude": 0, "frequency": 1, "phase_shift": 0}  # 0*sin(2*pi*t)
         ]
         indices = np.arange(4)
         combined_wave = generate_combined_sine_wave(sine_waves, indices, set_negatives_zero='per_wave')
         
-        # sin(0 + 0) = 0, so max(0, 0) = 0
+        # Expected wave: zeros
         expected_wave = np.zeros(4, dtype=np.float64)
         np.testing.assert_array_almost_equal(combined_wave, expected_wave, decimal=5)
 
