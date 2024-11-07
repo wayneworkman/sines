@@ -67,22 +67,22 @@ The `sines.py` script processes time series data to identify sine waves that mod
 
 **Example Usage**:
 ```
-python3 sines.py --data-file sample_data/sunspots/SN_d_tot_V2.0.csv --date-col date --value-col sunspot --desired-step-size fast --desired-refinement-step-size fast --wave-count 5 --set-negatives-zero after_sum
+python3 sines.py --data-file sample_data/sunspots/SN_d_tot_V2.0.csv --project-dir ~/sunspots --date-col date --value-col sunspot --desired-step-size fast --desired-refinement-step-size fast --wave-count 5 --set-negatives-zero after_sum
 ```
 
 #### Arguments
 - `--data-file`: **(Required)** Path to the input data file (JSON or CSV).
+- `--project-dir`: **(Required)** Directory to store project data including waves and logs.
 - `--date-col`: Name of the date column in the input data (default: `date`).
 - `--value-col`: Name of the value column in the input data (default: `value`).
 - `--moving-average`: Optional window size for smoothing data with a moving average.
-- `--waves-dir`: Directory to store generated sine wave parameters (default: `waves`).
-- `--log-dir`: Directory to store log files (default: `logs`).
-- `--desired-step-size`: Step size mode for brute-force search (`fine`, `normal`, `fast`; default: `fast`).
-- `--desired-refinement-step-size`: Step size mode for refinement phase (`fine`, `normal`, `fast`, `skip`; default: `skip`).
+- `--desired-step-size`: Step size mode for brute-force search (`fine`, `normal`, `fast`; default: `normal`).
+- `--desired-refinement-step-size`: Step size mode for refinement phase (`fine`, `normal`, `fast`, `skip`; default: `normal`).
 - `--progressive-step-sizes`: **(Flag)** Dynamically adjust step sizes based on observed and combined wave differences (default: enabled).
 - `--set-negatives-zero`: How to handle negative sine wave values (`after_sum`, `per_wave`, `none`; default: `none`).
 - `--no-plot`: **(Flag)** Disable real-time plotting.
 - `--wave-count`: Specify the maximum number of waves to discover before the script stops. If set to `0`, the script will continue indefinitely (default: `50`).
+- `--top-candidates`: Number of top candidates to consider during the brute-force search phase (default: `5`).
 
 #### Detailed Explanation of `--set-negatives-zero`
 
@@ -115,19 +115,19 @@ The `extrapolator.py` script reconstructs and extrapolates the data using genera
 
 **Example Usage**:
 ```
-python3 extrapolator.py --data-file sample_data/sunspots/SN_d_tot_V2.0.csv --date-col date --value-col sunspot
+python3 extrapolator.py --data-file sample_data/sunspots/SN_d_tot_V2.0.csv  --project-dir ~/sunspots --date-col date --value-col sunspot --set-negatives-zero after_sum
 ```
 
 #### Arguments
 - `--data-file`: **(Required)** Path to the observed data CSV file.
-- `--waves-dir`: Directory containing sine wave JSON files (default: `waves`).
+- `--project-dir`: **(Required)** Directory containing project data including waves and logs.
 - `--date-col`: Name of the column containing date information (default: `Timestamp`).
 - `--value-col`: Name of the column containing observed values (default: `Value`).
 - `--set-negatives-zero`: How to handle negative sine wave values (`after_sum`, `per_wave`, `none`; default: `none`).
 - `--predict-before`: Percentage of data points to predict before the observed data (default: `5.0`).
 - `--predict-after`: Percentage of data points to predict after the observed data (default: `5.0`).
 - `--moving-average`: Apply a moving average filter to smooth the data (default: `None`).
-
+    
 #### Detailed Explanation of `--set-negatives-zero`
 
 The `--set-negatives-zero` argument in `extrapolator.py` functions similarly to its counterpart in `sines.py`, determining how negative values in the combined sine waves are handled during data reconstruction and extrapolation:
@@ -233,12 +233,14 @@ The **Sines Project** has been optimized for GPU resources, enhancing processing
 
 Both `sines.py` and `extrapolator.py` generate detailed logs.
 
-- **Log Directory**: Defined by `--log-dir` in `sines.py`.
+- **Log Directory**: Defined by `--project-dir/logs`.
 - **Log Contents**:
   - **Progress Updates**: Percentage completion of brute-force search phases.
   - **Fitness Scores**: Tracking the best and current fitness scores during searches.
   - **Parameter Selections**: Details of sine wave parameters being evaluated.
   - **Warnings and Error Messages**: Notifications about data loading issues, OpenCL errors, and other runtime warnings.
+
+Additionally, each execution appends a log entry to `command_log.log` within the `logs` directory. This entry includes a timestamp and the full command with all arguments, facilitating easy reproduction of any project run.
 
 Logs are instrumental for monitoring the process and diagnosing issues during wave discovery and data extrapolation. They are especially useful for long-running processes or when running scripts in non-interactive environments.
 
@@ -271,3 +273,7 @@ git push origin feature/your-feature-name
 8. **Open a Pull Request**: Navigate to the original repository and click "New Pull Request."
 
 **Disclaimer**: This project is provided "as is" without warranty. Use at your own risk.
+
+## License
+
+[Specify the license here, e.g., MIT License. If unchanged, keep as is.]
