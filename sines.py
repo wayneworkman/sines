@@ -7,6 +7,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from datetime import datetime
 import logging
+import shlex
 
 # Constants
 LOCAL_WORK_SIZE = 256  # Work group size for OpenCL, must be compatible with GPU
@@ -299,16 +300,16 @@ def generate_sine_wave(params, num_points, set_negatives_zero=False):
         np.maximum(sine_wave, 0, out=sine_wave)
     return sine_wave
 
-def load_previous_waves(num_points, output_dir, set_negatives_zero=False):
+def load_previous_waves(num_points, waves_dir, set_negatives_zero=False):
     """
     Load all previously saved waves and compute the true cumulative sum without applying zeroing.
     Zeroing (if required) is handled only during fitness evaluation.
     """
     combined_wave = np.zeros(num_points, dtype=np.float32)
-    for filename in sorted(os.listdir(output_dir)):
+    for filename in sorted(os.listdir(waves_dir)):
         if filename.endswith(".json"):
             try:
-                with open(os.path.join(output_dir, filename), "r") as f:
+                with open(os.path.join(waves_dir, filename), "r") as f:
                     wave_params = json.load(f)
                     sine_wave = generate_sine_wave(wave_params, num_points, set_negatives_zero)
                     combined_wave += sine_wave
@@ -438,9 +439,8 @@ def main():
     parser.add_argument('--data-file', type=str, required=True, help="Path to the data file")
     parser.add_argument('--date-col', type=str, default="date", help="Name of the date column in the data")
     parser.add_argument('--value-col', type=str, default="value", help="Name of the value column in the data")
+    parser.add_argument('--project-dir', type=str, required=True, help="Directory to store project data including waves and logs")
     parser.add_argument('--moving-average', type=int, help="Optional moving average window for smoothing the data")
-    parser.add_argument('--waves-dir', type=str, default="waves", help="Directory to store generated wave parameters")
-    parser.add_argument('--log-dir', type=str, default="logs", help="Directory to store log files")
     parser.add_argument('--desired-step-size', type=str, choices=['fine', 'normal', 'fast'], default="normal",
                         help="Desired step size mode for brute-force search phase")
     parser.add_argument('--desired-refinement-step-size', type=str, choices=['fine', 'normal', 'fast', 'skip'], default="normal",
@@ -458,13 +458,27 @@ def main():
 
     args = parser.parse_args()
 
-    # Setup logging after parsing arguments
-    if not os.path.exists(args.log_dir):
-        os.makedirs(args.log_dir)
-    log_filename = os.path.join(args.log_dir, datetime.now().strftime("%Y-%m-%d_%H-%M-%S.log"))
+    # Replace waves-dir and log-dir with project-dir
+    project_dir = args.project_dir
+    waves_dir = os.path.join(project_dir, "waves")
+    log_dir = os.path.join(project_dir, "logs")
+
+    # Create project directories if they don't exist
+    os.makedirs(waves_dir, exist_ok=True)
+    os.makedirs(log_dir, exist_ok=True)
+
+    # Setup logging after setting project directories
+    log_filename = os.path.join(log_dir, datetime.now().strftime("%Y-%m-%d_%H-%M-%S.log"))
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s",
                         handlers=[logging.FileHandler(log_filename), logging.StreamHandler()])
-    
+
+    # **Special Command Log Entry**
+    command_log_path = os.path.join(log_dir, "command_log.log")
+    with open(command_log_path, "a") as cmd_log_file:
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S,%f")[:-3]
+        command = 'python3 ' + 'sines.py ' + ' '.join(shlex.quote(arg) for arg in sys.argv[1:])
+        cmd_log_file.write(f"{timestamp} {command}\n")
+
     logging.info("Sines is Starting")
 
     context, queue, max_work_group_size, max_mem_alloc_size = setup_opencl()
@@ -475,8 +489,8 @@ def main():
         moving_average=args.moving_average
     )
 
-    if not os.path.exists(args.waves_dir):
-        os.makedirs(args.waves_dir)
+    if not os.path.exists(waves_dir):
+        os.makedirs(waves_dir)
 
     # **Modified Line: Use maximum absolute value instead of maximum positive value**
     max_observed = np.max(np.abs(observed_data)) if len(observed_data) > 0 else 1.0
@@ -511,7 +525,7 @@ def main():
     # Determine if after_sum_zeroing is needed
     after_sum_zeroing = args.set_negatives_zero == 'after_sum'
     # Load previous waves without applying after_sum_zeroing here
-    combined_wave = load_previous_waves(len(observed_data), args.waves_dir, set_negatives_zero=(args.set_negatives_zero == 'per_wave'))
+    combined_wave = load_previous_waves(len(observed_data), waves_dir, set_negatives_zero=(args.set_negatives_zero == 'per_wave'))
 
     # Initialize plotting if not disabled
     if not args.no_plot:
@@ -576,8 +590,8 @@ def main():
 
         if best_params is not None:
             best_params = {k: float(v) for k, v in best_params.items()}
-            wave_id = len([f for f in os.listdir(args.waves_dir) if f.endswith(".json")]) + 1
-            with open(os.path.join(args.waves_dir, f"wave_{wave_id}.json"), "w") as f:
+            wave_id = len([f for f in os.listdir(waves_dir) if f.endswith(".json")]) + 1
+            with open(os.path.join(waves_dir, f"wave_{wave_id}.json"), "w") as f:
                 json.dump(best_params, f)
 
             new_wave = generate_sine_wave(best_params, len(observed_data), set_negatives_zero=(args.set_negatives_zero == 'per_wave'))
@@ -610,4 +624,5 @@ def main():
         plt.close(fig)
 
 if __name__ == "__main__":
+    import sys  # Needed for command log entry
     main()
