@@ -16,7 +16,6 @@
   - [Running Unit Tests (`tests.py`)](#running-unit-tests-testspy)
   - [Sample Data Scripts](#sample-data-scripts)
 - [Testing](#testing)
-  - [Test Script: `test_sines.py`](#test-script-test_sinespy)
   - [Test Suite: `tests.py`](#test-suite-testspy)
 - [Performance](#performance)
 - [Known Limitations](#known-limitations)
@@ -32,6 +31,8 @@ The **Sines Project** is a powerful toolset designed for modeling and extrapolat
 
 - **Automated Sine Wave Generation**: Utilizes brute-force and refinement techniques to identify optimal sine wave parameters that best fit your data.
 - **GPU Acceleration**: Leverages GPU computational power through OpenCL for intensive calculations.
+- **FFT-Based Initialization**: Employs Fast Fourier Transform (FFT) for initial frequency estimation, improving convergence and accuracy.
+- **Simultaneous Dual Wave Optimization**: Capable of optimizing two sine waves simultaneously to capture complex patterns in the data.
 - **Real-Time Visualization**: Monitors the fitting progress with dynamic plotting capabilities.
 - **Data Extrapolation**: Reconstructs and extrapolates data using identified sine waves.
 - **Logging**: Tracks the process with detailed log files.
@@ -47,14 +48,15 @@ The project operates in two primary phases: **Brute-Force Search** and **Refinem
 
 ### Phase One: Brute-Force Search
 
-1. **Parameter Grid Generation**: Generates a grid of possible sine wave parameters (amplitude, frequency, phase shift).
-2. **Fitness Calculation**: For each parameter combination, calculates a fitness score by comparing it against the observed data.
-3. **Top Candidates Selection**: Retains the top-performing parameter combinations with the lowest fitness scores.
-4. **Real-Time Visualization**: Continuously updates plots to visualize the fitting progress.
+1. **Parameter Grid Generation**: Generates a grid of possible sine wave parameters (amplitude, frequency, phase shift). With the `--optimize-two-waves` flag, the grid encompasses combinations of two sine waves simultaneously.
+2. **FFT-Based Frequency Estimation**: When enabled via `--use-fft-initialization`, the script uses the Fast Fourier Transform to estimate initial frequencies, focusing the search on the most promising frequency ranges.
+3. **Fitness Calculation**: For each parameter combination, calculates a fitness score by comparing it against the observed data.
+4. **Top Candidates Selection**: Retains the top-performing parameter combinations with the lowest fitness scores, configurable via `--top-candidates`.
+5. **Real-Time Visualization**: Continuously updates plots to visualize the fitting progress.
 
 ### Phase Two: Refinement
 
-1. **Focused Parameter Search**: Performs a finer search around top candidates from the brute-force phase.
+1. **Focused Parameter Search**: Performs a finer search around top candidates from the brute-force phase. This phase can be skipped with `--desired-refinement-step-size skip`.
 2. **Fitness Recalculation**: Recomputes fitness scores for refined parameter combinations.
 3. **Best Parameters Identification**: Selects parameters that yield the best fitness scores.
 4. **Optional Refinement**: Users can skip this phase for faster results.
@@ -67,7 +69,7 @@ The `sines.py` script processes time series data to identify sine waves that mod
 
 **Example Usage**:
 ```
-python3 sines.py --data-file sample_data/sunspots/SN_d_tot_V2.0.csv --project-dir ~/sunspots --date-col date --value-col sunspot --desired-step-size fast --desired-refinement-step-size fast --wave-count 5 --set-negatives-zero after_sum
+python3 sines.py --data-file sample_data/sunspots/SN_d_tot_V2.0.csv --project-dir ~/sunspots --date-col date --value-col sunspot --desired-step-size fast --desired-refinement-step-size fast --wave-count 5 --set-negatives-zero after_sum --use-fft-initialization --optimize-two-waves
 ```
 
 #### Arguments
@@ -83,6 +85,8 @@ python3 sines.py --data-file sample_data/sunspots/SN_d_tot_V2.0.csv --project-di
 - `--no-plot`: **(Flag)** Disable real-time plotting.
 - `--wave-count`: Specify the maximum number of waves to discover before the script stops. If set to `0`, the script will continue indefinitely (default: `50`).
 - `--top-candidates`: Number of top candidates to consider during the brute-force search phase (default: `5`).
+- `--use-fft-initialization`: **(Flag)** Enable FFT-based initial frequency estimation to focus the search on dominant frequencies.
+- `--optimize-two-waves`: **(Flag)** Optimize two sine waves simultaneously during the brute-force search phase.
 
 #### Detailed Explanation of `--set-negatives-zero`
 
@@ -127,7 +131,7 @@ python3 extrapolator.py --data-file sample_data/sunspots/SN_d_tot_V2.0.csv --pro
 - `--predict-before`: Percentage of data points to predict before the observed data (default: `5.0`).
 - `--predict-after`: Percentage of data points to predict after the observed data (default: `5.0`).
 - `--moving-average`: Apply a moving average filter to smooth the data (default: `None`).
-    
+
 #### Detailed Explanation of `--set-negatives-zero`
 
 The `--set-negatives-zero` argument in `extrapolator.py` functions similarly to its counterpart in `sines.py`, determining how negative values in the combined sine waves are handled during data reconstruction and extrapolation:
@@ -184,40 +188,26 @@ This test suite covers:
 - Sine wave generation, including edge cases.
 - Data loading from CSV and JSON files, including handling of malformed data.
 - Wave parameter refinement processes.
+- FFT-based frequency estimation and its integration.
+- Optimization of two sine waves simultaneously.
 - OpenCL platform and device detection.
 - Integration tests simulating full workflows.
 - Performance tests with varying dataset sizes and parameters.
 
 ## Performance
 
-The **Sines Project** has been optimized for GPU resources, enhancing processing speed. 
-
-**Performance Benchmarks**:
-
-- **Processor**: Intel Core i5-2400 @ 3.10 GHz (4 cores)
-- **RAM**: 16 GB
-- **GPU**: Nvidia Quadro 6000
-- **OS**: Ubuntu 20.04.6 LTS
-
-**Dataset Examples**:
-
-- **Solar Sunspot Data**:
-  - **Data Points**: 75,546
-  - **Maximum Amplitude**: ~375
-  - **Performance**: Each brute-force search phase takes approximately one minute per wave discovery.
-
-- **M4 Test Data**:
-  - **Data Points**: 470
-  - **Maximum Amplitude**: ~60,000
-  - **Performance**: Each brute-force search phase takes about one second.
-
 **Notes**:
+
 - **High Amplitude Impact**: Datasets with higher maximum amplitudes expand the search space, leading to longer processing times during sine wave discovery.
 - **Data Point Volume**: Larger numbers of data points increase computational load.
-- **Optimization Tips**:
-  - Utilize `--progressive-step-sizes` to dynamically adjust step sizes, potentially reducing search times.
-  - Consider skipping the refinement phase with `--desired-refinement-step-size skip` for faster, albeit less precise, results.
-  - Utilize GPU acceleration effectively by ensuring optimal OpenCL setup and driver configurations.
+
+**Optimization Tips**:
+
+- Utilize `--progressive-step-sizes` to dynamically adjust step sizes, potentially reducing search times.
+- Consider skipping the refinement phase with `--desired-refinement-step-size skip` for faster, albeit less precise, results.
+- Enable FFT-based frequency estimation with `--use-fft-initialization` to focus the search on dominant frequencies.
+- Utilize the `--optimize-two-waves` flag to capture complex patterns more efficiently.
+- Utilize GPU acceleration effectively by ensuring optimal OpenCL setup and driver configurations.
 
 ## Known Limitations
 
@@ -228,6 +218,8 @@ The **Sines Project** has been optimized for GPU resources, enhancing processing
 - **Performance on Large Datasets**: High-amplitude datasets with extensive data points significantly increase processing times due to larger search spaces.
 - **Step Size Configuration**: Improper step size configurations can lead to suboptimal sine wave discoveries or excessively long computation times.
 - **Dependency on GPU**: Optimal performance relies on GPU availability and proper OpenCL setup. Systems without compatible GPUs may experience degraded performance.
+- **FFT Limitations**: The FFT-based frequency estimation assumes that the dominant frequencies are present and may not capture all significant frequencies, especially in noisy data.
+- **Simultaneous Wave Optimization Complexity**: Using `--optimize-two-waves` increases computational complexity and may lead to longer processing times.
 
 ## Logging
 
