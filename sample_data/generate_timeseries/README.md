@@ -82,10 +82,10 @@ date,value
 Example usage
 ```
 # Utilize the training data with sines.
-python3 sines.py --data-file sample_data/generate_timeseries/training_data.csv --date-col date --value-col value --wave-count 0 --project-dir ~/generate_timeseries
+python3 sines.py --data-file sample_data/generate_timeseries/training_data.csv --date-col date --value-col value --wave-count 10 --project-dir sample_projects/generate_timeseries
 
 # Utilize the testing data with the extrapolator.
-python3 extrapolator.py --data-file sample_data/generate_timeseries/testing_data.csv --value-col value --date-col date --project-dir ~/generate_timeseries
+python3 extrapolator.py --data-file sample_data/generate_timeseries/testing_data.csv --value-col value --date-col date --project-dir sample_projects/generate_timeseries --predict-before 0 --predict-after 0
 ```
 
 ## Unit Tests

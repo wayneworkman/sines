@@ -95,19 +95,19 @@ After running the script to produce the training and test data, you can use `sin
 ### Using with `sines.py`
 ```
 # Create the first three waves without FFT
-python3 sines.py --data-file ~/Downloads/M4Data_transformed/M1_Monthly-train.csv --date-col Timestamp --value-col Value --wave-count 3 --project-dir ~/M1_Monthly
+python3 sines.py --data-file ~/Downloads/M4Data_transformed/M1_Monthly-train.csv --date-col Timestamp --value-col Value --wave-count 3 --project-dir sample_projects/M1_Monthly
 
 # Create other waves with FFT
-python3 sines.py --data-file ~/Downloads/M4Data_transformed/M1_Monthly-train.csv --date-col Timestamp --value-col Value --wave-count 20 --project-dir ~/M1_Monthly --use-fft-initialization
+python3 sines.py --data-file ~/Downloads/M4Data_transformed/M1_Monthly-train.csv --date-col Timestamp --value-col Value --wave-count 20 --project-dir sample_projects/M1_Monthly --use-fft-initialization
 
 # Create 5 final waves without FFT.
-python3 sines.py --data-file ~/Downloads/M4Data_transformed/M1_Monthly-train.csv --date-col Timestamp --value-col Value --wave-count 25 --project-dir ~/M1_Monthly
+python3 sines.py --data-file ~/Downloads/M4Data_transformed/M1_Monthly-train.csv --date-col Timestamp --value-col Value --wave-count 25 --project-dir sample_projects/M1_Monthly
 ```
 
 ### Using with `extrapolator.py`
 After completing sufficient training, you can use the extrapolator with the combined test data:
 ```
-python3 extrapolator.py --data-file ~/Downloads/M4Data_transformed/M1_Monthly-test_combined.csv --date-col Timestamp --value-col Value --predict-before 0 --predict-after 0 --project-dir ~/M1_Monthly
+python3 extrapolator.py --data-file ~/Downloads/M4Data_transformed/M1_Monthly-test_combined.csv --date-col Timestamp --value-col Value --predict-before 0 --predict-after 0 --project-dir sample_projects/M1_Monthly
 ```
 
 With the graph produced, you can visually see how the predicted values align with the actual test data.

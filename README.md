@@ -25,7 +25,7 @@
 
 ## Introduction
 
-The **Sines Project** is a powerful toolset designed for modeling and extrapolating time series data using sine wave decomposition. By breaking down complex time series into constituent sine waves, the project facilitates accurate predictions and analyses of historical and future data points.
+The **Sines Project** is a powerful toolset designed for modeling and extrapolating time series data using sine wave decomposition. By breaking down complex time series into constituent sine waves, the project facilitates accurate predictions and analyses of historical and future data points. Sines was produced through collaborative work between a human and an A.I. Read the story inside of "the_journey.txt"
 
 ## Features
 
@@ -214,12 +214,15 @@ This test suite covers:
 - **Date Range**: The date range for extrapolated data is constrained by the datetime library and Pandas limitations:
   - **Start Date**: 1677-09-22
   - **End Date**: 2262-04-10
-- **Date Approximation**: Because `sines.py` and `extrapolator.py` both use data index rather than date to calculate data values for sine waves, the dates displayed within extrapolator are a very close approximation but not exactly correct.
+- **Extrapolator Date Approximation**: Because `sines.py` and `extrapolator.py` both use data index rather than date to calculate data values for sine waves, the dates displayed within extrapolator are a very close approximation but not exactly correct.
+- **Extrapolator data alignment**: Some observed data don't align correctly with combined sine wave values. This is a known issue and will hopefully be fixed in a future version.
 - **Performance on Large Datasets**: High-amplitude datasets with extensive data points significantly increase processing times due to larger search spaces.
 - **Step Size Configuration**: Improper step size configurations can lead to suboptimal sine wave discoveries or excessively long computation times.
 - **Dependency on GPU**: Optimal performance relies on GPU availability and proper OpenCL setup. Systems without compatible GPUs may experience degraded performance.
 - **FFT Limitations**: The FFT-based frequency estimation assumes that the dominant frequencies are present and may not capture all significant frequencies, especially in noisy data.
 - **Simultaneous Wave Optimization Complexity**: Using `--optimize-two-waves` increases computational complexity and may lead to longer processing times.
+
+
 
 ## Logging
 
