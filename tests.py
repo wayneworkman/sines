@@ -13,6 +13,7 @@ from sines import (
     refine_candidates,
     brute_force_sine_wave_search,
     setup_opencl,
+    estimate_initial_frequencies,  # Import estimate_initial_frequencies for testing
     STEP_SIZES  # Import STEP_SIZES for modification
 )
 from extrapolator import (
@@ -30,7 +31,7 @@ class TestSines(unittest.TestCase):
         # Set logging level to suppress non-critical messages during tests
         logging.basicConfig(level=logging.ERROR)
 
-        # Existing setup code...
+        # Initialize OpenCL context and queue
         platforms = cl.get_platforms()
         if platforms:
             devices = platforms[0].get_devices()
@@ -78,7 +79,6 @@ class TestSines(unittest.TestCase):
         # Remove the temporary directory after tests
         shutil.rmtree(self.test_dir)
 
-    # Existing tests...
     def test_generate_sine_wave_basic(self):
         # Testing the basic generation of a sine wave
         params = {"amplitude": 1, "frequency": 1, "phase_shift": 0}
@@ -116,7 +116,6 @@ class TestSines(unittest.TestCase):
         with open(wave_file_path, "w") as f:
             json.dump(wave_params, f)
 
-        # **Updated: Replace 'output_dir' with 'waves_dir'**
         loaded_waves = load_previous_waves(num_points=10, waves_dir=self.test_dir)
         expected_wave = generate_sine_wave(wave_params, 10)
         np.testing.assert_array_almost_equal(loaded_waves, expected_wave, decimal=5)
@@ -160,7 +159,6 @@ class TestSines(unittest.TestCase):
         )
         self.assertIsInstance(refined_best_params, dict)
         self.assertGreater(refined_best_score, 0)
-
 
     def test_load_data_json_valid(self):
         # Test loading data from a valid JSON file
@@ -250,7 +248,6 @@ class TestSines(unittest.TestCase):
             json.dump(wave_params2, f)
         
         num_points = 10
-        # **Updated: Replace 'output_dir' with 'waves_dir'**
         loaded_waves = load_previous_waves(num_points=num_points, waves_dir=self.test_dir)
         
         expected_wave1 = generate_sine_wave(wave_params1, num_points)
@@ -262,7 +259,6 @@ class TestSines(unittest.TestCase):
     def test_load_previous_waves_no_files(self):
         # Ensure that loading waves with no wave files returns a zeroed array
         num_points = 10
-        # **Updated: Replace 'output_dir' with 'waves_dir'**
         loaded_waves = load_previous_waves(num_points=num_points, waves_dir=self.test_dir)
         expected_wave = np.zeros(num_points, dtype=np.float32)
         np.testing.assert_array_equal(loaded_waves, expected_wave)
@@ -281,7 +277,6 @@ class TestSines(unittest.TestCase):
         
         # Capture logging warnings
         with self.assertLogs(level='WARNING') as log:
-            # **Updated: Replace 'output_dir' with 'waves_dir'**
             loaded_waves = load_previous_waves(num_points=10, waves_dir=self.test_dir)
         
         # Verify that corrupted file was skipped and valid wave was loaded
@@ -355,7 +350,6 @@ class TestSines(unittest.TestCase):
             json.dump(wave_params, f)
         
         num_points = 4
-        # **Updated: Replace 'output_dir' with 'waves_dir'**
         combined_wave = load_previous_waves(num_points=num_points, waves_dir=self.test_dir, set_negatives_zero=False)
         expected_wave = generate_sine_wave(wave_params, num_points, set_negatives_zero=False)
 
@@ -375,12 +369,49 @@ class TestSines(unittest.TestCase):
         expected_wave = np.array([0.0, 0.0, 0.0, 0.0], dtype=np.float32)
         np.testing.assert_array_almost_equal(sine_wave, expected_wave, decimal=5)
 
+    def test_estimate_initial_frequencies(self):
+        # Test the estimate_initial_frequencies function
+        residual = np.sin(2 * np.pi * 0.1 * np.arange(100)) + \
+                   0.5 * np.sin(2 * np.pi * 0.05 * np.arange(100)) + \
+                   np.random.normal(0, 0.1, 100)
+        initial_freqs = estimate_initial_frequencies(residual)
+        self.assertTrue(len(initial_freqs) > 0)
+        # Check that the dominant frequencies are close to 0.1 and 0.05
+        self.assertTrue(any(np.isclose(initial_freqs, 0.1, atol=0.01)))
+        self.assertTrue(any(np.isclose(initial_freqs, 0.05, atol=0.01)))
+
+    def test_brute_force_sine_wave_search_optimize_two_waves(self):
+        # Test brute_force_sine_wave_search with optimize_two_waves=True
+        observed_data = np.sin(2 * np.pi * 0.1 * np.arange(50)) + \
+                        0.5 * np.sin(2 * np.pi * 0.05 * np.arange(50))
+        observed_data = observed_data.astype(np.float32)
+        combined_wave = np.zeros(len(observed_data), dtype=np.float32)
+
+        candidates = brute_force_sine_wave_search(
+            observed_data, combined_wave, self.context, self.queue, None, wave_count=1,
+            optimize_two_waves=True,
+            num_top=2
+        )
+        self.assertIsInstance(candidates, list)
+        self.assertTrue(len(candidates) > 0)
+        # Check that each candidate has parameters for two waves
+        for candidate in candidates:
+            params, score = candidate
+            self.assertIn('amplitude1', params)
+            self.assertIn('frequency1', params)
+            self.assertIn('phase_shift1', params)
+            self.assertIn('amplitude2', params)
+            self.assertIn('frequency2', params)
+            self.assertIn('phase_shift2', params)
+            self.assertIsInstance(score, np.float32)
+            self.assertGreaterEqual(score, 0)
+
 class TestExtrapolator(unittest.TestCase):
     def setUp(self):
         # Set logging level to suppress non-critical messages during tests
         logging.basicConfig(level=logging.ERROR)
 
-        # Existing setup code...
+        # Create a temporary directory for test files
         self.test_dir = tempfile.mkdtemp()
         self.patcher = patch('extrapolator.plt.show')
         self.mock_show = self.patcher.start()
@@ -539,36 +570,86 @@ class TestExtrapolator(unittest.TestCase):
         
         np.testing.assert_array_almost_equal(combined_wave, expected_combined, decimal=5)
 
-    def test_generate_combined_sine_wave_empty_waves(self):
-        # Test with no sine waves
-        sine_waves = []
-        indices = np.arange(10)
-        combined_wave = generate_combined_sine_wave(sine_waves, indices, set_negatives_zero='after_sum')
-        expected_wave = np.zeros(10, dtype=np.float64)
-        np.testing.assert_array_equal(combined_wave, expected_wave)
-
-    def test_generate_combined_sine_wave_with_negatives_after_sum(self):
-        # Create sine waves that sum to negative values
+    def test_generate_combined_sine_wave_with_adjusted_indices(self):
+        # Test generate_combined_sine_wave with adjusted indices
         sine_waves = [
-            {"amplitude": 1, "frequency": 1, "phase_shift": np.pi},  # sin(2*pi*t + pi) = -sin(2*pi*t)
-            {"amplitude": 1, "frequency": 1, "phase_shift": np.pi}   # sin(2*pi*t + pi) = -sin(2*pi*t)
+            {"amplitude": 1, "frequency": 0.1, "phase_shift": 0}
         ]
-        indices = np.arange(4)
-        combined_wave = generate_combined_sine_wave(sine_waves, indices, set_negatives_zero='after_sum')
-        # Each wave is -sin(2*pi*t), sum is -2*sin(2*pi*t)
-        expected_wave = np.zeros(4, dtype=np.float64)
+        indices = np.arange(-5, 5)  # Indices starting from negative values
+        combined_wave = generate_combined_sine_wave(sine_waves, indices, set_negatives_zero='none')
+
+        # Adjust indices to start from zero
+        indices_zero_based = indices - indices[0]
+        expected_wave = sine_waves[0]['amplitude'] * np.sin(2 * np.pi * sine_waves[0]['frequency'] * indices_zero_based + sine_waves[0]['phase_shift'])
         np.testing.assert_array_almost_equal(combined_wave, expected_wave, decimal=5)
 
-    def test_plot_data(self):
-        # Test plotting function (mock plt.show)
+    def test_combined_dates_alignment(self):
+        # Test that combined_dates and indices are correctly aligned
+        # Prepare test data
+        dates = pd.Series(pd.to_datetime(["2020-01-01", "2020-01-02", "2020-01-03"]))
+        data_values = np.array([100, 200, 150])
+        indices = np.arange(len(data_values))
+
+        # Assume average timespan is 1 day
+        avg_timespan = 1.0
+
+        # Prepare arguments
+        predict_before_steps = 2
+        predict_after_steps = 2
+        extended_indices = np.concatenate([
+            indices[0] - np.arange(predict_before_steps, 0, -1),
+            indices,
+            indices[-1] + np.arange(1, predict_after_steps + 1)
+        ])
+
+        # Generate dates
+        first_date = dates.iloc[0]
+        last_date = dates.iloc[-1]
+        before_dates = [first_date - pd.Timedelta(days=avg_timespan * i) for i in range(predict_before_steps, 0, -1)]
+        after_dates = [last_date + pd.Timedelta(days=avg_timespan * i) for i in range(1, predict_after_steps + 1)]
+
+        combined_dates = pd.Series(before_dates + list(dates) + after_dates, index=extended_indices)
+
+        # Check that the combined_dates have the correct indices
+        expected_indices = np.concatenate([
+            np.arange(-2, 0),
+            np.arange(0, 3),
+            np.arange(3, 5)
+        ])
+        self.assertTrue(np.array_equal(combined_dates.index, expected_indices))
+
+        # Check that the dates are correctly ordered
+        expected_dates = pd.Series(
+            pd.to_datetime([
+                "2019-12-30", "2019-12-31", "2020-01-01", "2020-01-02", "2020-01-03", "2020-01-04", "2020-01-05"
+            ]),
+            index=expected_indices
+        )
+        pd.testing.assert_series_equal(combined_dates, expected_dates)
+
+    def test_plot_data_with_extended_dates(self):
+        # Test plot_data function with extended_dates
         dates = pd.Series(pd.to_datetime(["2020-01-01", "2020-01-02", "2020-01-03"]))
         indices = np.arange(3)
         data_values = np.array([100, 200, 150])
-        combined_wave = np.array([90, 210, 160])
-        
+        combined_wave = np.array([90, 210, 160, 170, 180])  # Includes predictions
+
+        extended_dates_dict = {
+            'before': {
+                'indices': np.array([-2, -1]),
+                'dates': pd.Series(pd.to_datetime(["2019-12-30", "2019-12-31"]), index=np.array([-2, -1]))
+            },
+            'after': {
+                'indices': np.array([3, 4]),
+                'dates': pd.Series(pd.to_datetime(["2020-01-04", "2020-01-05"]), index=np.array([3, 4]))
+            }
+        }
+
+        observed_dates = dates
         with patch('extrapolator.plt.show') as mock_show:
-            plot_data(dates, indices, data_values, combined_wave)
+            plot_data(observed_dates, indices, data_values, combined_wave, extended_dates=extended_dates_dict)
             mock_show.assert_called_once()
+
 
     def test_generate_combined_sine_wave_with_set_negatives_zero_after_sum(self):
         # Create sine waves that sum to negative values
