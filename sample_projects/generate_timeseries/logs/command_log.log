@@ -1,0 +1,3 @@
+2024-11-08 00:54:24,546 python3 sines.py --data-file sample_data/generate_timeseries/training_data.csv --date-col date --value-col value --wave-count 10 --project-dir sample_projects/generate_timeseries --optimize-two-waves
+2024-11-08 00:55:22,766 python3 extrapolator.py --data-file sample_data/generate_timeseries/training_data.csv --value-col value --date-col date --project-dir sample_projects/generate_timeseries --predict-before 0 --predict-after 0
+2024-11-08 00:56:09,906 python3 extrapolator.py --data-file sample_data/generate_timeseries/testing_data.csv --value-col value --date-col date --project-dir sample_projects/generate_timeseries --predict-before 0 --predict-after 0

@@ -1,0 +1,87 @@
+2024-11-08 00:54:24,546 - INFO - Sines is Starting
+2024-11-08 00:54:24,589 - INFO - Using device: Quadro 6000
+2024-11-08 00:54:24,589 - INFO - Max work group size: 1024
+2024-11-08 00:54:24,589 - INFO - Device Max Work Group Size: 1024
+2024-11-08 00:54:24,589 - INFO - Device Max Memory Allocation Size: 1590149120 bytes
+2024-11-08 00:54:24,596 - INFO - Loaded data from CSV file: sample_data/generate_timeseries/training_data.csv
+2024-11-08 00:54:24,597 - INFO - Loaded data statistics:
+2024-11-08 00:54:24,597 - INFO -   Number of data points: 1828
+2024-11-08 00:54:24,597 - INFO -   Max value: 162.75480095967947
+2024-11-08 00:54:24,598 - INFO -   Min value: -184.47198822015585
+2024-11-08 00:54:24,598 - INFO -   Mean value: -20.975286618088393
+2024-11-08 00:54:24,598 - INFO -   Start date: 2000-01-01 00:00:00
+2024-11-08 00:54:24,598 - INFO -   End date: 2005-01-01 00:00:00
+2024-11-08 00:54:24,859 - INFO - Starting discovery of waves 1, 2
+2024-11-08 00:54:24,859 - INFO - Using fine step size based on difference: 99.51
+2024-11-08 00:54:24,859 - INFO - Wave 1, 2: Starting brute-force search with two sine waves.
+2024-11-08 00:54:24,892 - INFO - Total combinations to evaluate: 623700
+2024-11-08 00:54:24,892 - INFO - Processing parameter combinations in 10 chunks of size 65536.
+2024-11-08 00:54:25,152 - INFO - Wave 1, 2: Progress: 10.51%, Best Score So Far: 117663.171875
+2024-11-08 00:54:25,770 - INFO - Wave 1, 2: Completed brute-force search with best score: 34162.3671875
+2024-11-08 00:54:25,773 - INFO - Wave 1, 2: Refinement phase skipped. Using top candidate from brute-force search.
+2024-11-08 00:54:25,958 - INFO - Waves 1, 2: Best score: 34162.3671875
+2024-11-08 00:54:25,958 - INFO - Starting discovery of waves 3, 4
+2024-11-08 00:54:25,958 - INFO - Using ultrafine step size based on difference: 18.69
+2024-11-08 00:54:25,959 - INFO - Wave 3, 4: Starting brute-force search with two sine waves.
+2024-11-08 00:54:26,187 - INFO - Total combinations to evaluate: 4989600
+2024-11-08 00:54:26,187 - INFO - Processing parameter combinations in 77 chunks of size 65536.
+2024-11-08 00:54:26,397 - INFO - Wave 3, 4: Progress: 1.31%, Best Score So Far: 31283.8203125
+2024-11-08 00:54:27,079 - INFO - Wave 3, 4: Progress: 14.45%, Best Score So Far: 21434.017578125
+2024-11-08 00:54:27,729 - INFO - Wave 3, 4: Progress: 27.58%, Best Score So Far: 21430.859375
+2024-11-08 00:54:28,379 - INFO - Wave 3, 4: Progress: 40.72%, Best Score So Far: 21430.859375
+2024-11-08 00:54:29,027 - INFO - Wave 3, 4: Progress: 53.85%, Best Score So Far: 21430.859375
+2024-11-08 00:54:29,674 - INFO - Wave 3, 4: Progress: 66.99%, Best Score So Far: 21430.859375
+2024-11-08 00:54:30,323 - INFO - Wave 3, 4: Progress: 80.12%, Best Score So Far: 21430.859375
+2024-11-08 00:54:30,970 - INFO - Wave 3, 4: Progress: 93.26%, Best Score So Far: 21430.859375
+2024-11-08 00:54:31,482 - INFO - Wave 3, 4: Completed brute-force search with best score: 21430.859375
+2024-11-08 00:54:31,486 - INFO - Wave 3, 4: Refinement phase skipped. Using top candidate from brute-force search.
+2024-11-08 00:54:31,669 - INFO - Waves 3, 4: Best score: 21430.859375
+2024-11-08 00:54:31,670 - INFO - Starting discovery of waves 5, 6
+2024-11-08 00:54:31,670 - INFO - Using ultrafine step size based on difference: 11.72
+2024-11-08 00:54:31,670 - INFO - Wave 5, 6: Starting brute-force search with two sine waves.
+2024-11-08 00:54:31,898 - INFO - Total combinations to evaluate: 4989600
+2024-11-08 00:54:31,898 - INFO - Processing parameter combinations in 77 chunks of size 65536.
+2024-11-08 00:54:32,106 - INFO - Wave 5, 6: Progress: 1.31%, Best Score So Far: 18241.73828125
+2024-11-08 00:54:32,754 - INFO - Wave 5, 6: Progress: 14.45%, Best Score So Far: 11904.69921875
+2024-11-08 00:54:33,402 - INFO - Wave 5, 6: Progress: 27.58%, Best Score So Far: 11904.69921875
+2024-11-08 00:54:34,049 - INFO - Wave 5, 6: Progress: 40.72%, Best Score So Far: 11904.69921875
+2024-11-08 00:54:34,697 - INFO - Wave 5, 6: Progress: 53.85%, Best Score So Far: 11904.69921875
+2024-11-08 00:54:35,344 - INFO - Wave 5, 6: Progress: 66.99%, Best Score So Far: 11904.69921875
+2024-11-08 00:54:36,031 - INFO - Wave 5, 6: Progress: 80.12%, Best Score So Far: 11904.69921875
+2024-11-08 00:54:36,678 - INFO - Wave 5, 6: Progress: 93.26%, Best Score So Far: 11904.69921875
+2024-11-08 00:54:37,185 - INFO - Wave 5, 6: Completed brute-force search with best score: 11904.69921875
+2024-11-08 00:54:37,188 - INFO - Wave 5, 6: Refinement phase skipped. Using top candidate from brute-force search.
+2024-11-08 00:54:37,369 - INFO - Waves 5, 6: Best score: 11904.69921875
+2024-11-08 00:54:37,370 - INFO - Starting discovery of waves 7, 8
+2024-11-08 00:54:37,370 - INFO - Using ultrafine step size based on difference: 6.51
+2024-11-08 00:54:37,370 - INFO - Wave 7, 8: Starting brute-force search with two sine waves.
+2024-11-08 00:54:37,597 - INFO - Total combinations to evaluate: 4989600
+2024-11-08 00:54:37,598 - INFO - Processing parameter combinations in 77 chunks of size 65536.
+2024-11-08 00:54:37,804 - INFO - Wave 7, 8: Progress: 1.31%, Best Score So Far: 11519.5712890625
+2024-11-08 00:54:38,450 - INFO - Wave 7, 8: Progress: 14.45%, Best Score So Far: 11456.9482421875
+2024-11-08 00:54:39,094 - INFO - Wave 7, 8: Progress: 27.58%, Best Score So Far: 11456.9482421875
+2024-11-08 00:54:39,738 - INFO - Wave 7, 8: Progress: 40.72%, Best Score So Far: 11456.9482421875
+2024-11-08 00:54:40,382 - INFO - Wave 7, 8: Progress: 53.85%, Best Score So Far: 11456.9482421875
+2024-11-08 00:54:41,025 - INFO - Wave 7, 8: Progress: 66.99%, Best Score So Far: 11456.9482421875
+2024-11-08 00:54:41,672 - INFO - Wave 7, 8: Progress: 80.12%, Best Score So Far: 11456.9482421875
+2024-11-08 00:54:42,317 - INFO - Wave 7, 8: Progress: 93.26%, Best Score So Far: 11456.9482421875
+2024-11-08 00:54:42,824 - INFO - Wave 7, 8: Completed brute-force search with best score: 11456.9482421875
+2024-11-08 00:54:42,828 - INFO - Wave 7, 8: Refinement phase skipped. Using top candidate from brute-force search.
+2024-11-08 00:54:43,008 - INFO - Waves 7, 8: Best score: 11456.9482421875
+2024-11-08 00:54:43,008 - INFO - Starting discovery of waves 9, 10
+2024-11-08 00:54:43,009 - INFO - Using ultrafine step size based on difference: 6.27
+2024-11-08 00:54:43,009 - INFO - Wave 9, 10: Starting brute-force search with two sine waves.
+2024-11-08 00:54:43,235 - INFO - Total combinations to evaluate: 4989600
+2024-11-08 00:54:43,235 - INFO - Processing parameter combinations in 77 chunks of size 65536.
+2024-11-08 00:54:43,443 - INFO - Wave 9, 10: Progress: 1.31%, Best Score So Far: 10868.927734375
+2024-11-08 00:54:44,088 - INFO - Wave 9, 10: Progress: 14.45%, Best Score So Far: 10868.927734375
+2024-11-08 00:54:44,734 - INFO - Wave 9, 10: Progress: 27.58%, Best Score So Far: 10868.927734375
+2024-11-08 00:54:45,419 - INFO - Wave 9, 10: Progress: 40.72%, Best Score So Far: 10868.927734375
+2024-11-08 00:54:46,066 - INFO - Wave 9, 10: Progress: 53.85%, Best Score So Far: 10868.927734375
+2024-11-08 00:54:46,711 - INFO - Wave 9, 10: Progress: 66.99%, Best Score So Far: 10868.927734375
+2024-11-08 00:54:47,357 - INFO - Wave 9, 10: Progress: 80.12%, Best Score So Far: 10868.927734375
+2024-11-08 00:54:48,004 - INFO - Wave 9, 10: Progress: 93.26%, Best Score So Far: 10868.927734375
+2024-11-08 00:54:48,511 - INFO - Wave 9, 10: Completed brute-force search with best score: 10868.927734375
+2024-11-08 00:54:48,516 - INFO - Wave 9, 10: Refinement phase skipped. Using top candidate from brute-force search.
+2024-11-08 00:54:48,698 - INFO - Waves 9, 10: Best score: 10868.927734375
+2024-11-08 00:54:48,698 - INFO - Reached the specified wave count of 10. Exiting.
