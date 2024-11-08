@@ -1,0 +1,4 @@
+2024-11-07 23:52:07,529 python3 sines.py --data-file /home/wayne/Downloads/M4Data_transformed/M1_Monthly-train.csv --date-col Timestamp --value-col Value --wave-count 3 --project-dir /home/wayne/M1_Monthly
+2024-11-07 23:52:28,372 python3 sines.py --data-file /home/wayne/Downloads/M4Data_transformed/M1_Monthly-train.csv --date-col Timestamp --value-col Value --wave-count 20 --project-dir /home/wayne/M1_Monthly --use-fft-initialization
+2024-11-07 23:53:43,114 python3 sines.py --data-file /home/wayne/Downloads/M4Data_transformed/M1_Monthly-train.csv --date-col Timestamp --value-col Value --wave-count 25 --project-dir /home/wayne/M1_Monthly
+2024-11-07 23:54:00,784 python3 extrapolator.py --data-file /home/wayne/Downloads/M4Data_transformed/M1_Monthly-test_combined.csv --date-col Timestamp --value-col Value --predict-before 0 --predict-after 0 --project-dir /home/wayne/M1_Monthly
