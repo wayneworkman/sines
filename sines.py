@@ -190,8 +190,42 @@ def brute_force_sine_wave_search(observed_data, combined_wave, context, queue, a
         zero_mode = 0
 
     if optimize_two_waves:
-        # [Code for optimizing two waves remains unchanged]
-        pass
+        logging.info(f"Wave {wave_count}, {wave_count + 1}: Starting brute-force search with two sine waves.")
+
+        # Adjust frequency ranges based on initial frequencies if provided
+        if initial_frequencies is not None and len(initial_frequencies) >= 2:
+            delta_freq = frequency_range[1] - frequency_range[0] if len(frequency_range) > 1 else 0.0001
+            # Expand frequency ranges to include both initial frequencies
+            start_freq = min(initial_frequencies[0], initial_frequencies[1]) - delta_freq * 5
+            end_freq = max(initial_frequencies[0], initial_frequencies[1]) + delta_freq * 5
+            # Ensure frequencies are within a reasonable range
+            start_freq = max(start_freq, 0.000001)
+            end_freq = min(end_freq, 0.5)
+            frequency_range1 = frequency_range2 = np.arange(start_freq, end_freq, delta_freq)
+            if len(frequency_range1) == 0:
+                logging.warning("Frequency range is empty after adjustment. Using default frequency range.")
+                frequency_range1 = frequency_range2 = frequency_range
+        else:
+            frequency_range1 = frequency_range2 = frequency_range
+
+        # Generate parameter grids for both waves
+        amplitude_grid1, frequency_grid1, phase_shift_grid1 = np.meshgrid(
+            amplitude_range, frequency_range1, phase_shift_range, indexing='ij'
+        )
+        amplitude_grid2, frequency_grid2, phase_shift_grid2 = np.meshgrid(
+            amplitude_range, frequency_range2, phase_shift_range, indexing='ij'
+        )
+
+        # Flatten the grids and create parameter combinations
+        parameter_combinations = np.stack([
+            amplitude_grid1.ravel(), frequency_grid1.ravel(), phase_shift_grid1.ravel(),
+            amplitude_grid2.ravel(), frequency_grid2.ravel(), phase_shift_grid2.ravel()
+        ], axis=-1)
+
+        total_combinations = parameter_combinations.shape[0]
+        num_parameters = 6  # Since we're optimizing two waves
+        KERNEL_CODE = KERNEL_CODE_DOUBLE_WAVE
+
     else:
         logging.info(f"Wave {wave_count}: Starting brute-force search with one sine wave.")
 
@@ -212,11 +246,16 @@ def brute_force_sine_wave_search(observed_data, combined_wave, context, queue, a
             if len(frequency_range) == 0:
                 logging.warning(f"Frequency range is empty after adjustment. Using default frequency range.")
                 frequency_range = STEP_SIZES[desired_step_size]["frequency"]
-        param_iter = itertools.product(
-            amplitude_range, frequency_range, phase_shift_range
+        # Generate parameter grid for one wave
+        amplitude_grid, frequency_grid, phase_shift_grid = np.meshgrid(
+            amplitude_range, frequency_range, phase_shift_range, indexing='ij'
         )
-        total_combinations = len(amplitude_range) * len(frequency_range) * len(phase_shift_range)
-
+        parameter_combinations = np.stack([
+            amplitude_grid.ravel(),
+            frequency_grid.ravel(),
+            phase_shift_grid.ravel()
+        ], axis=-1)
+        total_combinations = parameter_combinations.shape[0]
         num_parameters = 3  # Since we're optimizing one wave
         KERNEL_CODE = KERNEL_CODE_SINGLE_WAVE
 
@@ -236,22 +275,18 @@ def brute_force_sine_wave_search(observed_data, combined_wave, context, queue, a
     best_score_so_far = np.inf
 
     # Process parameter combinations in chunks
-    chunk_idx = 0
-    while True:
-        # Prepare parameter lists for the current chunk
-        parameters_chunk = list(itertools.islice(param_iter, chunk_size))
-        if not parameters_chunk:
-            break  # No more combinations to process
-
-        current_chunk_size = len(parameters_chunk)
+    for chunk_idx in range(num_chunks):
+        start = chunk_idx * chunk_size
+        end = min(start + chunk_size, total_combinations)
+        current_chunk_size = end - start
 
         if optimize_two_waves:
-            amplitude_chunk1 = np.array([p[0] for p in parameters_chunk], dtype=np.float32)
-            frequency_chunk1 = np.array([p[1] for p in parameters_chunk], dtype=np.float32)
-            phase_shift_chunk1 = np.array([p[2] for p in parameters_chunk], dtype=np.float32)
-            amplitude_chunk2 = np.array([p[3] for p in parameters_chunk], dtype=np.float32)
-            frequency_chunk2 = np.array([p[4] for p in parameters_chunk], dtype=np.float32)
-            phase_shift_chunk2 = np.array([p[5] for p in parameters_chunk], dtype=np.float32)
+            amplitude_chunk1 = parameter_combinations[start:end, 0].astype(np.float32)
+            frequency_chunk1 = parameter_combinations[start:end, 1].astype(np.float32)
+            phase_shift_chunk1 = parameter_combinations[start:end, 2].astype(np.float32)
+            amplitude_chunk2 = parameter_combinations[start:end, 3].astype(np.float32)
+            frequency_chunk2 = parameter_combinations[start:end, 4].astype(np.float32)
+            phase_shift_chunk2 = parameter_combinations[start:end, 5].astype(np.float32)
             scores_chunk = np.empty(current_chunk_size, dtype=np.float32)
 
             amplitudes_buf1 = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=amplitude_chunk1)
@@ -269,9 +304,9 @@ def brute_force_sine_wave_search(observed_data, combined_wave, context, queue, a
                 scores_buf, np.int32(len(observed_data)), np.int32(zero_mode)
             )
         else:
-            amplitude_chunk = np.array([p[0] for p in parameters_chunk], dtype=np.float32)
-            frequency_chunk = np.array([p[1] for p in parameters_chunk], dtype=np.float32)
-            phase_shift_chunk = np.array([p[2] for p in parameters_chunk], dtype=np.float32)
+            amplitude_chunk = parameter_combinations[start:end, 0].astype(np.float32)
+            frequency_chunk = parameter_combinations[start:end, 1].astype(np.float32)
+            phase_shift_chunk = parameter_combinations[start:end, 2].astype(np.float32)
             scores_chunk = np.empty(current_chunk_size, dtype=np.float32)
 
             amplitudes_buf = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=amplitude_chunk)
@@ -373,8 +408,6 @@ def brute_force_sine_wave_search(observed_data, combined_wave, context, queue, a
                 logging.info(f"Wave {wave_count}, {wave_count + 1}: Progress: {progress:.2f}%, Best Score So Far: {best_score_so_far}")
             else:
                 logging.info(f"Wave {wave_count}: Progress: {progress:.2f}%, Best Score So Far: {best_score_so_far}")
-
-        chunk_idx += 1
 
     if optimize_two_waves:
         logging.info(f"Wave {wave_count}, {wave_count + 1}: Completed brute-force search with best score: {best_score_so_far}")
@@ -513,7 +546,6 @@ def refine_candidates(top_candidates, observed_data, combined_wave, context, que
 
     logging.info(f"Wave {wave_count}: Completed refinement phase with best score: {refined_best_score}")
     return refined_best_params, refined_best_score
-
 
 # -------------------- End of Refinement Phase -------------------- #
 
