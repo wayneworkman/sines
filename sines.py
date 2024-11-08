@@ -19,24 +19,24 @@ STEP_SIZES = {}
 
 REFINEMENT_STEP_SIZES_BASE = {
     'ultrafine': {
-        'amplitude_step_ratio': 0.01,
-        'frequency_step': 0.00000005,
-        'phase_shift_step': 0.0005
+        'amplitude_step_ratio': 0.001,
+        'frequency_step': 0.000000005,
+        'phase_shift_step': 0.00005
     },
     'fine': {
-        'amplitude_step_ratio': 0.02,
-        'frequency_step': 0.0000001,
-        'phase_shift_step': 0.001
+        'amplitude_step_ratio': 0.002,
+        'frequency_step': 0.00000001,
+        'phase_shift_step': 0.0001
     },
     'normal': {
-        'amplitude_step_ratio': 0.05,
-        'frequency_step': 0.0000005,
-        'phase_shift_step': 0.002
+        'amplitude_step_ratio': 0.005,
+        'frequency_step': 0.00000005,
+        'phase_shift_step': 0.0002
     },
     'fast': {
-        'amplitude_step_ratio': 0.1,
-        'frequency_step': 0.000001,
-        'phase_shift_step': 0.005
+        'amplitude_step_ratio': 0.01,
+        'frequency_step': 0.0000001,
+        'phase_shift_step': 0.0005
     }
 }
 
@@ -501,24 +501,24 @@ def main():
     global STEP_SIZES
     STEP_SIZES = {
         'ultrafine': {
-            'amplitude': np.arange(0.1, amplitude_upper_limit, 0.01 * max_observed),
-            'frequency': np.arange(0.00001, 0.001, 0.0000075),
-            'phase_shift': np.arange(0, 2 * np.pi, 0.025)
+            'amplitude': np.arange(0.1, amplitude_upper_limit, 0.001 * max_observed),
+            'frequency': np.arange(0.00001, 0.001, 0.00000075),
+            'phase_shift': np.arange(0, 2 * np.pi, 0.0025)
         },
         'fine': {
-            'amplitude': np.arange(0.1, amplitude_upper_limit, 0.02 * max_observed),
-            'frequency': np.arange(0.00001, 0.001, 0.000015),
-            'phase_shift': np.arange(0, 2 * np.pi, 0.05)
+            'amplitude': np.arange(0.1, amplitude_upper_limit, 0.002 * max_observed),
+            'frequency': np.arange(0.00001, 0.001, 0.0000015),
+            'phase_shift': np.arange(0, 2 * np.pi, 0.005)
         },
         'normal': {
-            'amplitude': np.arange(0.1, amplitude_upper_limit, 0.05 * max_observed),
-            'frequency': np.arange(0.00001, 0.001, 0.00003),
-            'phase_shift': np.arange(0, 2 * np.pi, 0.15)
+            'amplitude': np.arange(0.1, amplitude_upper_limit, 0.005 * max_observed),
+            'frequency': np.arange(0.00001, 0.001, 0.000003),
+            'phase_shift': np.arange(0, 2 * np.pi, 0.015)
         },
         'fast': {
-            'amplitude': np.arange(0.1, amplitude_upper_limit, 0.1 * max_observed),
-            'frequency': np.arange(0.00001, 0.001, 0.00006),
-            'phase_shift': np.arange(0, 2 * np.pi, 0.3)
+            'amplitude': np.arange(0.1, amplitude_upper_limit, 0.01 * max_observed),
+            'frequency': np.arange(0.00001, 0.001, 0.000006),
+            'phase_shift': np.arange(0, 2 * np.pi, 0.03)
         }
     }
 
