@@ -9,6 +9,11 @@ from datetime import datetime
 import logging
 import shlex
 
+# New imports for FFT
+from scipy.signal import find_peaks
+import numpy.fft as fft
+import itertools  # Import itertools for efficient iteration
+
 # Constants
 LOCAL_WORK_SIZE = 256  # Work group size for OpenCL, must be compatible with GPU
 
@@ -40,9 +45,9 @@ REFINEMENT_STEP_SIZES_BASE = {
     }
 }
 
-# -------------------- OpenCL Kernel Definition -------------------- #
+# -------------------- OpenCL Kernel Definitions -------------------- #
 
-KERNEL_CODE = """
+KERNEL_CODE_SINGLE_WAVE = """
 __kernel void calculate_fitness(
     __global const float *observed,
     __global const float *combined,
@@ -79,12 +84,77 @@ __kernel void calculate_fitness(
 }
 """
 
+KERNEL_CODE_DOUBLE_WAVE = """
+__kernel void calculate_fitness_two_waves(
+    __global const float *observed,
+    __global const float *combined,
+    __global const float *amplitudes1,
+    __global const float *frequencies1,
+    __global const float *phase_shifts1,
+    __global const float *amplitudes2,
+    __global const float *frequencies2,
+    __global const float *phase_shifts2,
+    __global float *scores,
+    int num_points,
+    int zero_mode  // 0: no zeroing, 1: per_wave, 2: after_sum
+) {
+    int gid = get_global_id(0);
+    float amplitude1 = amplitudes1[gid];
+    float frequency1 = frequencies1[gid];
+    float phase_shift1 = phase_shifts1[gid];
+    float amplitude2 = amplitudes2[gid];
+    float frequency2 = frequencies2[gid];
+    float phase_shift2 = phase_shifts2[gid];
+    float score = 0.0f;
+
+    for (int i = 0; i < num_points; i++) {
+        float sine_value1 = amplitude1 * sin(2.0f * 3.141592653589793f * frequency1 * i + phase_shift1);
+        float sine_value2 = amplitude2 * sin(2.0f * 3.141592653589793f * frequency2 * i + phase_shift2);
+        
+        if (zero_mode == 1) {
+            if (sine_value1 < 0) sine_value1 = 0;
+            if (sine_value2 < 0) sine_value2 = 0;
+        }
+        
+        float combined_value = combined[i] + sine_value1 + sine_value2;
+        
+        if (zero_mode == 2 && combined_value < 0) {
+            combined_value = 0;  // after_sum zeroing
+        }
+        
+        float diff = observed[i] - combined_value;
+        score += fabs(diff);
+    }
+    scores[gid] = score;
+}
+"""
+
+# -------------------- FFT-Based Initial Frequency Estimation -------------------- #
+
+def estimate_initial_frequencies(residual, sampling_rate=1.0):
+    n = len(residual)
+    freq_spectrum = fft.fft(residual)
+    freq = fft.fftfreq(n, d=sampling_rate)
+    magnitude = np.abs(freq_spectrum)
+    # Only consider positive frequencies
+    pos_mask = freq > 0
+    freq = freq[pos_mask]
+    magnitude = magnitude[pos_mask]
+    # Identify peaks in the frequency spectrum
+    peaks, _ = find_peaks(magnitude)
+    peak_freqs = freq[peaks]
+    peak_magnitudes = magnitude[peaks]
+    # Sort peaks by magnitude
+    sorted_indices = np.argsort(peak_magnitudes)[::-1]
+    peak_freqs = peak_freqs[sorted_indices]
+    return peak_freqs
+
 # -------------------- Chunk Size Determination -------------------- #
 
-def determine_chunk_size(total_combinations, max_work_group_size, max_mem_alloc_size):
+def determine_chunk_size(total_combinations, max_work_group_size, max_mem_alloc_size, num_parameters=3):
     # Estimate the memory required per parameter combination
-    # Each combination has amplitude, frequency, phase_shift (3 floats) and score (1 float)
-    bytes_per_combination = 4 * 4  # 4 floats * 4 bytes each
+    # Each combination has num_parameters floats and score (1 float)
+    bytes_per_combination = (num_parameters + 1) * 4  # floats * 4 bytes each
 
     # Calculate the maximum number of combinations that fit into the max memory allocation
     max_combinations_memory = max_mem_alloc_size // bytes_per_combination
@@ -93,7 +163,7 @@ def determine_chunk_size(total_combinations, max_work_group_size, max_mem_alloc_
     max_combinations_memory = (max_combinations_memory // max_work_group_size) * max_work_group_size
 
     # Set a reasonable upper limit if the calculated size is too large
-    reasonable_upper_limit = 1 << 20  # 1,048,576
+    reasonable_upper_limit = 1 << 16  # 65,536
     chunk_size = min(max_combinations_memory, reasonable_upper_limit)
 
     # Ensure chunk_size does not exceed total_combinations
@@ -103,6 +173,226 @@ def determine_chunk_size(total_combinations, max_work_group_size, max_mem_alloc_
     chunk_size = max(LOCAL_WORK_SIZE, chunk_size)
 
     return chunk_size
+
+# -------------------- Brute-Force Search with Chunked Processing -------------------- #
+
+def brute_force_sine_wave_search(observed_data, combined_wave, context, queue, ax, wave_count, desired_step_size='fast', set_negatives_zero=False, max_observed=1.0, max_work_group_size=LOCAL_WORK_SIZE, max_mem_alloc_size=134217728, num_top=5, initial_frequencies=None, optimize_two_waves=False):
+    amplitude_range = STEP_SIZES[desired_step_size]["amplitude"]
+    frequency_range = STEP_SIZES[desired_step_size]["frequency"]
+    phase_shift_range = STEP_SIZES[desired_step_size]["phase_shift"]
+
+    # Determine zero_mode based on set_negatives_zero
+    if set_negatives_zero == 'per_wave':
+        zero_mode = 1
+    elif set_negatives_zero == 'after_sum':
+        zero_mode = 2
+    else:
+        zero_mode = 0
+
+    if optimize_two_waves:
+        logging.info(f"Wave {wave_count}, {wave_count + 1}: Starting brute-force search with two sine waves.")
+
+        # Adjust frequency ranges based on initial frequencies if provided
+        if initial_frequencies is not None and len(initial_frequencies) >= 2:
+            delta_freq = frequency_range[1] - frequency_range[0] if len(frequency_range) > 1 else 0.0001
+            frequency_range1 = np.arange(max(initial_frequencies[0] - delta_freq * 5, frequency_range[0]),
+                                         min(initial_frequencies[0] + delta_freq * 5, frequency_range[-1]),
+                                         delta_freq)
+            frequency_range2 = np.arange(max(initial_frequencies[1] - delta_freq * 5, frequency_range[0]),
+                                         min(initial_frequencies[1] + delta_freq * 5, frequency_range[-1]),
+                                         delta_freq)
+        else:
+            frequency_range1 = frequency_range2 = frequency_range
+
+        # Create iterators for parameter combinations
+        param_iter = itertools.product(
+            amplitude_range, frequency_range1, phase_shift_range,
+            amplitude_range, frequency_range2, phase_shift_range
+        )
+        total_combinations = len(amplitude_range) * len(frequency_range1) * len(phase_shift_range) * \
+                             len(amplitude_range) * len(frequency_range2) * len(phase_shift_range)
+
+        num_parameters = 6  # Since we're optimizing two waves
+        KERNEL_CODE = KERNEL_CODE_DOUBLE_WAVE
+    else:
+        logging.info(f"Wave {wave_count}: Starting brute-force search with one sine wave.")
+
+        # Adjust frequency ranges based on initial frequencies if provided
+        if initial_frequencies is not None and len(initial_frequencies) >= 1:
+            delta_freq = frequency_range[1] - frequency_range[0] if len(frequency_range) > 1 else 0.0001
+            frequency_range = np.arange(max(initial_frequencies[0] - delta_freq * 5, frequency_range[0]),
+                                        min(initial_frequencies[0] + delta_freq * 5, frequency_range[-1]),
+                                        delta_freq)
+        param_iter = itertools.product(
+            amplitude_range, frequency_range, phase_shift_range
+        )
+        total_combinations = len(amplitude_range) * len(frequency_range) * len(phase_shift_range)
+
+        num_parameters = 3  # Since we're optimizing one wave
+        KERNEL_CODE = KERNEL_CODE_SINGLE_WAVE
+
+    logging.info(f"Total combinations to evaluate: {total_combinations}")
+
+    # Determine chunk size
+    chunk_size = determine_chunk_size(total_combinations, max_work_group_size, max_mem_alloc_size, num_parameters)
+    num_chunks = int(np.ceil(total_combinations / chunk_size))
+    logging.info(f"Processing parameter combinations in {num_chunks} chunks of size {chunk_size}.")
+
+    program = cl.Program(context, KERNEL_CODE).build()
+    mf = cl.mem_flags
+    observed_buf = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=observed_data)
+    combined_buf = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=combined_wave)
+
+    top_candidates = []
+    best_score_so_far = np.inf
+
+    # Process parameter combinations in chunks
+    chunk_idx = 0
+    while True:
+        # Prepare parameter lists for the current chunk
+        parameters_chunk = list(itertools.islice(param_iter, chunk_size))
+        if not parameters_chunk:
+            break  # No more combinations to process
+
+        current_chunk_size = len(parameters_chunk)
+
+        if optimize_two_waves:
+            amplitude_chunk1 = np.array([p[0] for p in parameters_chunk], dtype=np.float32)
+            frequency_chunk1 = np.array([p[1] for p in parameters_chunk], dtype=np.float32)
+            phase_shift_chunk1 = np.array([p[2] for p in parameters_chunk], dtype=np.float32)
+            amplitude_chunk2 = np.array([p[3] for p in parameters_chunk], dtype=np.float32)
+            frequency_chunk2 = np.array([p[4] for p in parameters_chunk], dtype=np.float32)
+            phase_shift_chunk2 = np.array([p[5] for p in parameters_chunk], dtype=np.float32)
+            scores_chunk = np.empty(current_chunk_size, dtype=np.float32)
+
+            amplitudes_buf1 = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=amplitude_chunk1)
+            frequencies_buf1 = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=frequency_chunk1)
+            phase_shifts_buf1 = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=phase_shift_chunk1)
+            amplitudes_buf2 = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=amplitude_chunk2)
+            frequencies_buf2 = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=frequency_chunk2)
+            phase_shifts_buf2 = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=phase_shift_chunk2)
+            scores_buf = cl.Buffer(context, mf.WRITE_ONLY, size=scores_chunk.nbytes)
+
+            kernel = program.calculate_fitness_two_waves
+            kernel.set_args(
+                observed_buf, combined_buf, amplitudes_buf1, frequencies_buf1, phase_shifts_buf1,
+                amplitudes_buf2, frequencies_buf2, phase_shifts_buf2,
+                scores_buf, np.int32(len(observed_data)), np.int32(zero_mode)
+            )
+        else:
+            amplitude_chunk = np.array([p[0] for p in parameters_chunk], dtype=np.float32)
+            frequency_chunk = np.array([p[1] for p in parameters_chunk], dtype=np.float32)
+            phase_shift_chunk = np.array([p[2] for p in parameters_chunk], dtype=np.float32)
+            scores_chunk = np.empty(current_chunk_size, dtype=np.float32)
+
+            amplitudes_buf = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=amplitude_chunk)
+            frequencies_buf = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=frequency_chunk)
+            phase_shifts_buf = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=phase_shift_chunk)
+            scores_buf = cl.Buffer(context, mf.WRITE_ONLY, size=scores_chunk.nbytes)
+
+            kernel = program.calculate_fitness
+            kernel.set_args(
+                observed_buf, combined_buf, amplitudes_buf, frequencies_buf,
+                phase_shifts_buf, scores_buf, np.int32(len(observed_data)), np.int32(zero_mode)
+            )
+
+        # Determine local work size
+        if current_chunk_size >= max_work_group_size:
+            if current_chunk_size % max_work_group_size == 0:
+                local_work_size = (max_work_group_size,)
+            else:
+                for lws in range(max_work_group_size, 0, -1):
+                    if current_chunk_size % lws == 0:
+                        local_work_size = (lws,)
+                        break
+                else:
+                    local_work_size = None
+        else:
+            local_work_size = (current_chunk_size,)
+
+        # Enqueue kernel execution
+        cl.enqueue_nd_range_kernel(queue, kernel, (current_chunk_size,), local_work_size)
+        queue.finish()
+
+        # Retrieve scores
+        cl.enqueue_copy(queue, scores_chunk, scores_buf)
+        queue.finish()
+
+        # Select top `num_top` candidates from the current chunk
+        indices = np.argsort(scores_chunk)[:num_top]
+        for idx in indices:
+            if optimize_two_waves:
+                params = {
+                    "amplitude1": amplitude_chunk1[idx],
+                    "frequency1": frequency_chunk1[idx],
+                    "phase_shift1": phase_shift_chunk1[idx],
+                    "amplitude2": amplitude_chunk2[idx],
+                    "frequency2": frequency_chunk2[idx],
+                    "phase_shift2": phase_shift_chunk2[idx]
+                }
+            else:
+                params = {
+                    "amplitude": amplitude_chunk[idx],
+                    "frequency": frequency_chunk[idx],
+                    "phase_shift": phase_shift_chunk[idx]
+                }
+            score = scores_chunk[idx]
+            top_candidates.append((params, score))
+            if score < best_score_so_far:
+                best_score_so_far = score
+
+        # Keep only the top `num_top` candidates overall
+        top_candidates = sorted(top_candidates, key=lambda x: x[1])[:num_top]
+
+        if ax is not None:
+            if chunk_idx % 5 == 0 or chunk_idx == num_chunks - 1:
+                if top_candidates:
+                    best_params = top_candidates[0][0]
+                    if optimize_two_waves:
+                        sine_wave1_params = {
+                            "amplitude": best_params["amplitude1"],
+                            "frequency": best_params["frequency1"],
+                            "phase_shift": best_params["phase_shift1"]
+                        }
+                        sine_wave2_params = {
+                            "amplitude": best_params["amplitude2"],
+                            "frequency": best_params["frequency2"],
+                            "phase_shift": best_params["phase_shift2"]
+                        }
+                        sine_wave1 = generate_sine_wave(sine_wave1_params, len(observed_data), set_negatives_zero=(set_negatives_zero == 'per_wave'))
+                        sine_wave2 = generate_sine_wave(sine_wave2_params, len(observed_data), set_negatives_zero=(set_negatives_zero == 'per_wave'))
+                        combined_plus_sine = combined_wave + sine_wave1 + sine_wave2
+                    else:
+                        sine_wave = generate_sine_wave(best_params, len(observed_data), set_negatives_zero=(set_negatives_zero == 'per_wave'))
+                        combined_plus_sine = combined_wave + sine_wave
+
+                    if set_negatives_zero == 'after_sum':
+                        combined_plus_sine = np.maximum(combined_plus_sine, 0)
+                    ax.clear()
+                    ax.plot(observed_data, label="Observed Data", color="blue")
+                    ax.plot(combined_plus_sine, label="Combined Sine Waves", color="orange")
+                    if optimize_two_waves:
+                        ax.set_title(f"Real-Time Fitting Progress - Wave {wave_count}, {wave_count + 1}")
+                    else:
+                        ax.set_title(f"Real-Time Fitting Progress - Wave {wave_count}")
+                    ax.legend()
+                    plt.pause(0.01)
+
+        progress = min((chunk_idx + 1) * chunk_size, total_combinations) / total_combinations * 100
+        if chunk_idx % 10 == 0:
+            if optimize_two_waves:
+                logging.info(f"Wave {wave_count}, {wave_count + 1}: Progress: {progress:.2f}%, Best Score So Far: {best_score_so_far}")
+            else:
+                logging.info(f"Wave {wave_count}: Progress: {progress:.2f}%, Best Score So Far: {best_score_so_far}")
+
+        chunk_idx += 1
+
+    if optimize_two_waves:
+        logging.info(f"Wave {wave_count}, {wave_count + 1}: Completed brute-force search with best score: {best_score_so_far}")
+    else:
+        logging.info(f"Wave {wave_count}: Completed brute-force search with best score: {best_score_so_far}")
+
+    return top_candidates
 
 # -------------------- Refinement Phase Implementation -------------------- #
 
@@ -124,7 +414,7 @@ def refine_candidates(top_candidates, observed_data, combined_wave, context, que
     frequency_step = REFINEMENT_STEP_SIZES_BASE[desired_refinement_step_size]["frequency_step"]
     phase_shift_step = REFINEMENT_STEP_SIZES_BASE[desired_refinement_step_size]["phase_shift_step"]
 
-    program = cl.Program(context, KERNEL_CODE).build()
+    program = cl.Program(context, KERNEL_CODE_SINGLE_WAVE).build()
     mf = cl.mem_flags
     observed_buf = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=observed_data)
     combined_buf = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=combined_wave)
@@ -317,123 +607,6 @@ def load_previous_waves(num_points, waves_dir, set_negatives_zero=False):
                 logging.warning(f"Error loading wave file {filename}. Skipping corrupted file.")
     return combined_wave
 
-def brute_force_sine_wave_search(observed_data, combined_wave, context, queue, ax, wave_count, desired_step_size='fast', set_negatives_zero=False, max_observed=1.0, max_work_group_size=LOCAL_WORK_SIZE, max_mem_alloc_size=134217728, num_top=5):
-    amplitude_range = STEP_SIZES[desired_step_size]["amplitude"]
-    frequency_range = STEP_SIZES[desired_step_size]["frequency"]
-    phase_shift_range = STEP_SIZES[desired_step_size]["phase_shift"]
-
-    amplitude_grid, frequency_grid, phase_shift_grid = np.meshgrid(
-        amplitude_range, frequency_range, phase_shift_range, indexing='ij'
-    )
-    parameter_combinations = np.stack([
-        amplitude_grid.ravel(),
-        frequency_grid.ravel(),
-        phase_shift_grid.ravel()
-    ], axis=-1)
-    total_combinations = parameter_combinations.shape[0]
-
-    logging.info(f"Wave {wave_count}: Starting brute-force search with {total_combinations} combinations.")
-
-    # Determine zero_mode based on set_negatives_zero
-    if set_negatives_zero == 'per_wave':
-        zero_mode = 1
-    elif set_negatives_zero == 'after_sum':
-        zero_mode = 2
-    else:
-        zero_mode = 0
-
-    program = cl.Program(context, KERNEL_CODE).build()
-    mf = cl.mem_flags
-    observed_buf = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=observed_data)
-    combined_buf = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=combined_wave)
-
-    chunk_size = determine_chunk_size(total_combinations, max_work_group_size, max_mem_alloc_size)
-    num_chunks = int(np.ceil(total_combinations / chunk_size))
-    logging.info(f"Wave {wave_count}: Processing parameter combinations in {num_chunks} chunks of size {chunk_size}.")
-
-    top_candidates = []
-    best_score_so_far = np.inf
-
-    for chunk_idx in range(num_chunks):
-        start = chunk_idx * chunk_size
-        end = min(start + chunk_size, total_combinations)
-        current_chunk_size = end - start
-
-        amplitude_chunk = parameter_combinations[start:end, 0].astype(np.float32)
-        frequency_chunk = parameter_combinations[start:end, 1].astype(np.float32)
-        phase_shift_chunk = parameter_combinations[start:end, 2].astype(np.float32)
-        scores_chunk = np.empty(current_chunk_size, dtype=np.float32)
-
-        amplitudes_buf = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=amplitude_chunk)
-        frequencies_buf = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=frequency_chunk)
-        phase_shifts_buf = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=phase_shift_chunk)
-        scores_buf = cl.Buffer(context, mf.WRITE_ONLY, size=scores_chunk.nbytes)
-
-        kernel = program.calculate_fitness
-        kernel.set_args(
-            observed_buf, combined_buf, amplitudes_buf, frequencies_buf,
-            phase_shifts_buf, scores_buf, np.int32(len(observed_data)), np.int32(zero_mode)
-        )
-
-        if current_chunk_size >= max_work_group_size:
-            if current_chunk_size % max_work_group_size == 0:
-                local_work_size = (max_work_group_size,)
-            else:
-                for lws in range(max_work_group_size, 0, -1):
-                    if current_chunk_size % lws == 0:
-                        local_work_size = (lws,)
-                        break
-                else:
-                    local_work_size = None
-        else:
-            local_work_size = (current_chunk_size,)
-
-        cl.enqueue_nd_range_kernel(queue, kernel, (current_chunk_size,), local_work_size)
-        queue.finish()
-
-        cl.enqueue_copy(queue, scores_chunk, scores_buf)
-        queue.finish()
-
-        # Select top `num_top` candidates from the current chunk
-        indices = np.argsort(scores_chunk)[:num_top]
-        for idx in indices:
-            params = {
-                "amplitude": amplitude_chunk[idx],
-                "frequency": frequency_chunk[idx],
-                "phase_shift": phase_shift_chunk[idx]
-            }
-            score = scores_chunk[idx]
-            top_candidates.append((params, score))
-            if score < best_score_so_far:
-                best_score_so_far = score
-
-        # Keep only the top `num_top` candidates overall
-        top_candidates = sorted(top_candidates, key=lambda x: x[1])[:num_top]
-
-        if ax is not None:
-            if chunk_idx % 5 == 0 or chunk_idx == num_chunks - 1:
-                if top_candidates:
-                    best_params = top_candidates[0][0]
-                    sine_wave = generate_sine_wave(best_params, len(observed_data), set_negatives_zero=(set_negatives_zero == 'per_wave'))
-                    combined_plus_sine = combined_wave + sine_wave
-                    if set_negatives_zero == 'after_sum':
-                        combined_plus_sine = np.maximum(combined_plus_sine, 0)
-                    ax.clear()
-                    ax.plot(observed_data, label="Observed Data", color="blue")
-                    ax.plot(combined_plus_sine, label="Combined Sine Waves", color="orange")
-                    ax.set_title(f"Real-Time Fitting Progress - Wave {wave_count}")
-                    ax.legend()
-                    plt.pause(0.01)
-
-        if chunk_idx % 10 == 0:
-            progress = (chunk_idx + 1) / num_chunks * 100
-            logging.info(f"Wave {wave_count}: Progress: {progress:.2f}%, Best Score So Far: {best_score_so_far}")
-
-    logging.info(f"Wave {wave_count}: Completed brute-force search with best score: {best_score_so_far}")
-    return top_candidates
-
-# -------------------- End of Brute-Force Search Phase -------------------- #
-
 def main():
     parser = argparse.ArgumentParser(description="Time Series Modeling with Sine Waves")
     parser.add_argument('--data-file', type=str, required=True, help="Path to the data file")
@@ -453,8 +626,12 @@ def main():
     parser.add_argument('--set-negatives-zero', type=str, choices=['after_sum', 'per_wave', 'none'], default='none',
                         help="How to handle negative sine wave values: 'after_sum', 'per_wave', or 'none' (default)")
 
-    # **New Argument: Number of Top Candidates**
+    # New Arguments
     parser.add_argument('--top-candidates', type=int, default=5, help="Number of top candidates to consider. Default is 5.")
+    parser.add_argument('--use-fft-initialization', action='store_true',
+                        help="Enable FFT-based initial frequency estimation")
+    parser.add_argument('--optimize-two-waves', action='store_true',
+                        help="Optimize two sine waves simultaneously")
 
     args = parser.parse_args()
 
@@ -472,7 +649,7 @@ def main():
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s",
                         handlers=[logging.FileHandler(log_filename), logging.StreamHandler()])
 
-    # **Special Command Log Entry**
+    # Special Command Log Entry
     command_log_path = os.path.join(log_dir, "command_log.log")
     with open(command_log_path, "a") as cmd_log_file:
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S,%f")[:-3]
@@ -492,7 +669,6 @@ def main():
     if not os.path.exists(waves_dir):
         os.makedirs(waves_dir)
 
-    # **Modified Line: Use maximum absolute value instead of maximum positive value**
     max_observed = np.max(np.abs(observed_data)) if len(observed_data) > 0 else 1.0
     scaling_factor = 1.5
     amplitude_upper_limit = max_observed * scaling_factor
@@ -524,7 +700,6 @@ def main():
 
     # Determine if after_sum_zeroing is needed
     after_sum_zeroing = args.set_negatives_zero == 'after_sum'
-    # Load previous waves without applying after_sum_zeroing here
     combined_wave = load_previous_waves(len(observed_data), waves_dir, set_negatives_zero=(args.set_negatives_zero == 'per_wave'))
 
     # Initialize plotting if not disabled
@@ -534,16 +709,17 @@ def main():
     else:
         ax = None  # No plotting
 
-    wave_count = 0
-
+    wave_count = len([f for f in os.listdir(waves_dir) if f.endswith(".json")])
     while True:
         # Check wave_count limit
         if args.wave_count != 0 and wave_count >= args.wave_count:
             logging.info(f"Reached the specified wave count of {args.wave_count}. Exiting.")
             break
 
-        wave_count += 1
-        logging.info(f"Starting discovery of wave {wave_count}")
+        if args.optimize_two_waves:
+            logging.info(f"Starting discovery of waves {wave_count + 1}, {wave_count + 2}")
+        else:
+            logging.info(f"Starting discovery of wave {wave_count + 1}")
 
         # Dynamic step size selection based on average difference
         if args.progressive_step_sizes:
@@ -560,20 +736,30 @@ def main():
         else:
             step_size = args.desired_step_size
 
-        # **Pass `args.top_candidates` to brute_force_sine_wave_search**
+        # Use FFT-based initial frequency estimation if enabled
+        if args.use_fft_initialization:
+            residual = observed_data - combined_wave
+            initial_frequencies = estimate_initial_frequencies(residual)
+            logging.info(f"Initial frequency estimates from FFT: {initial_frequencies[:2]}")
+        else:
+            initial_frequencies = None
+
+        # Pass `args.top_candidates` to brute_force_sine_wave_search
         top_candidates = brute_force_sine_wave_search(
-            observed_data, combined_wave, context, queue, ax, wave_count,
+            observed_data, combined_wave, context, queue, ax, wave_count + 1,
             desired_step_size=step_size,
             set_negatives_zero=args.set_negatives_zero,
             max_observed=max_observed,
             max_work_group_size=max_work_group_size,
             max_mem_alloc_size=max_mem_alloc_size,
-            num_top=args.top_candidates  # Configurable top candidates
+            num_top=args.top_candidates,  # Configurable top candidates
+            initial_frequencies=initial_frequencies,
+            optimize_two_waves=args.optimize_two_waves
         )
 
-        if args.desired_refinement_step_size.lower() != 'skip':
+        if args.desired_refinement_step_size.lower() != 'skip' and not args.optimize_two_waves:
             best_params, best_score = refine_candidates(
-                top_candidates, observed_data, combined_wave, context, queue, ax, wave_count,
+                top_candidates, observed_data, combined_wave, context, queue, ax, wave_count + 1,
                 desired_refinement_step_size=args.desired_refinement_step_size,
                 set_negatives_zero=args.set_negatives_zero,
                 max_observed=max_observed,
@@ -583,39 +769,77 @@ def main():
         else:
             if top_candidates:
                 best_params, best_score = top_candidates[0][0], top_candidates[0][1]
-                logging.info(f"Wave {wave_count}: Refinement phase skipped. Using top candidate from brute-force search.")
+                if args.optimize_two_waves:
+                    logging.info(f"Wave {wave_count + 1}, {wave_count + 2}: Refinement phase skipped. Using top candidate from brute-force search.")
+                else:
+                    logging.info(f"Wave {wave_count + 1}: Refinement phase skipped. Using top candidate from brute-force search.")
             else:
                 best_params, best_score = None, np.inf
-                logging.info(f"Wave {wave_count}: Refinement phase skipped. No candidates available from brute-force search.")
+                if args.optimize_two_waves:
+                    logging.info(f"Wave {wave_count + 1}, {wave_count + 2}: Refinement phase skipped. No candidates available from brute-force search.")
+                else:
+                    logging.info(f"Wave {wave_count + 1}: Refinement phase skipped. No candidates available from brute-force search.")
 
         if best_params is not None:
-            best_params = {k: float(v) for k, v in best_params.items()}
-            wave_id = len([f for f in os.listdir(waves_dir) if f.endswith(".json")]) + 1
-            with open(os.path.join(waves_dir, f"wave_{wave_id}.json"), "w") as f:
-                json.dump(best_params, f)
+            if args.optimize_two_waves:
+                sine_wave1_params = {
+                    "amplitude": float(best_params["amplitude1"]),
+                    "frequency": float(best_params["frequency1"]),
+                    "phase_shift": float(best_params["phase_shift1"])
+                }
+                sine_wave2_params = {
+                    "amplitude": float(best_params["amplitude2"]),
+                    "frequency": float(best_params["frequency2"]),
+                    "phase_shift": float(best_params["phase_shift2"])
+                }
+                wave_id1 = wave_count + 1
+                wave_id2 = wave_count + 2
+                with open(os.path.join(waves_dir, f"wave_{wave_id1}.json"), "w") as f:
+                    json.dump(sine_wave1_params, f)
+                with open(os.path.join(waves_dir, f"wave_{wave_id2}.json"), "w") as f:
+                    json.dump(sine_wave2_params, f)
 
-            new_wave = generate_sine_wave(best_params, len(observed_data), set_negatives_zero=(args.set_negatives_zero == 'per_wave'))
-            # Add the new wave to the cumulative sum without applying any zeroing
-            combined_wave += new_wave
+                new_wave1 = generate_sine_wave(sine_wave1_params, len(observed_data), set_negatives_zero=(args.set_negatives_zero == 'per_wave'))
+                new_wave2 = generate_sine_wave(sine_wave2_params, len(observed_data), set_negatives_zero=(args.set_negatives_zero == 'per_wave'))
+                combined_wave += new_wave1 + new_wave2
 
-            # No need to reload and zero the combined_wave here
-            # Zeroing is handled during fitness evaluation and plotting
+                if not args.no_plot and ax is not None:
+                    if args.set_negatives_zero == 'after_sum':
+                        combined_plus_sine = np.maximum(combined_wave, 0)
+                    else:
+                        combined_plus_sine = combined_wave.copy()
+                    ax.clear()
+                    ax.plot(observed_data, label="Observed Data", color="blue")
+                    ax.plot(combined_plus_sine, label="Combined Sine Waves", color="orange")
+                    ax.set_title(f"Real-Time Fitting Progress - {wave_count + 2} Waves")
+                    ax.legend()
+                    plt.pause(0.01)
 
-            if not args.no_plot and ax is not None:
-                # For plotting, apply zeroing if 'after_sum' is specified
-                if args.set_negatives_zero == 'after_sum':
-                    combined_plus_sine = np.maximum(combined_wave, 0)
-                else:
-                    combined_plus_sine = combined_wave.copy()
-                ax.clear()
-                ax.plot(observed_data, label="Observed Data", color="blue")
-                ax.plot(combined_plus_sine, label="Combined Sine Waves", color="orange")
-                ax.set_title(f"Real-Time Fitting Progress - {wave_count} Waves")
-                ax.legend()
-                plt.pause(0.01)
+                logging.info(f"Waves {wave_count + 1}, {wave_count + 2}: Best score: {best_score}")
+                wave_count += 2
+            else:
+                best_params = {k: float(v) for k, v in best_params.items()}
+                wave_id = wave_count + 1
+                with open(os.path.join(waves_dir, f"wave_{wave_id}.json"), "w") as f:
+                    json.dump(best_params, f)
 
-            logging.info(f"Wave {wave_count}: Best score: {best_score}")
+                new_wave = generate_sine_wave(best_params, len(observed_data), set_negatives_zero=(args.set_negatives_zero == 'per_wave'))
+                combined_wave += new_wave
 
+                if not args.no_plot and ax is not None:
+                    if args.set_negatives_zero == 'after_sum':
+                        combined_plus_sine = np.maximum(combined_wave, 0)
+                    else:
+                        combined_plus_sine = combined_wave.copy()
+                    ax.clear()
+                    ax.plot(observed_data, label="Observed Data", color="blue")
+                    ax.plot(combined_plus_sine, label="Combined Sine Waves", color="orange")
+                    ax.set_title(f"Real-Time Fitting Progress - {wave_count + 1} Waves")
+                    ax.legend()
+                    plt.pause(0.01)
+
+                logging.info(f"Wave {wave_count + 1}: Best score: {best_score}")
+                wave_count += 1
         else:
             logging.warning("No valid sine wave parameters were found in the refinement phase.")
 
