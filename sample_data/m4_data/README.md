@@ -94,7 +94,7 @@ After running the script to produce the training and test data, you can use `sin
 
 ### Using with `sines.py`
 ```
-python3 sines.py --data-file ~/Downloads/M4Data_transformed/M1_Monthly-train.csv --date-col Timestamp --value-col Value --wave-count 0 --project-dir ~/M1_Monthly
+python3 sines.py --data-file ~/Downloads/M4Data_transformed/M1_Monthly-train.csv --date-col Timestamp --value-col Value --wave-count 5 --project-dir ~/M1_Monthly --use-fft-initialization
 ```
 
 ### Using with `extrapolator.py`
