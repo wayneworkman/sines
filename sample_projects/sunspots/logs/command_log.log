@@ -1,0 +1,2 @@
+2024-11-08 00:15:31,608 python3 sines.py --data-file sample_data/sunspots/SN_d_tot_V2.0.csv --date-col date --value-col sunspot --set-negatives-zero after_sum --project-dir sample_projects/sunspots --wave-count 20
+2024-11-08 00:20:43,645 python3 extrapolator.py --data-file sample_data/sunspots/SN_d_tot_V2.0.csv --value-col sunspot --date-col date --set-negatives-zero after_sum --project-dir sample_projects/sunspots --predict-before 50 --predict-after 100

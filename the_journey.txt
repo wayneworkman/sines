@@ -1,0 +1,312 @@
+# The Journey
+
+The Sines project started on January 26, 2018,
+according to the date of the first commit in the
+old version. At that time, I was six years
+younger, had no children, and had a lot of time
+for hobby work. I watched Suspicious0bservers on
+YouTube and became fascinated with sunspots. I
+eventually found a dataset online from SILSO and
+wanted to try to predict future and past
+sunspots. I got to work and started on the first
+version of Sines. Over the next four years, I
+worked on the project as it interested me.
+
+I was using MySQL for data storage of data
+points (observed and predicted) and Grafana for
+visualization. The engine was entirely powered
+by Python and ran on an HP DL580 with 80 cores.
+I spent most of my time optimizing the algorithm
+to run faster and faster. I learned Python
+multiprocessing very well and improved my logic
+skills with Python through all this. Throughout
+all of this, I did not know what a Fourier
+Transform was and didn't know of its existence.
+
+The code ran very slowly, despite a powerful
+machine utilizing all cores. I further optimized
+things by installing the MySQL data files
+completely into an in-memory file system and had
+cron backups to disk periodically to increase
+database performance further. The more waves
+that Sines produced, the slower the next wave was
+to discover, to the point where waves 20 and 30
+were individually taking weeks of nonstop
+processing on my server. I improved and optimized
+for a long while, getting things to run faster.
+The codebase became extensive (I still have the
+code; it is private), complete with installation
+instructions, Terraform files for setup in AWS,
+scripts for downloading, and ETL processes. I
+wrote scripts to download more than just sunspot
+data. I thought the predictions that the old
+version of Sines made were fairly good.
+Occasionally, I would look up the new sunspot
+data from SILSO and see how my predictions fared
+as the years passed.
+
+Then one day, I watched a video on YouTube from
+Veritasium about the Fast Fourier Transform. This
+video reignited my interest in the old Sines
+project. I wanted to see how I could integrate
+this into Sines. Fast forward to last week, which
+was October 2024. I started using Large Language
+Models to help me with things. One of those was
+ChatGPT. After some days of experimentation with
+ChatGPT, I was in shock and awe of its power. I
+thought, and still think, this is the most
+incredible tool that the world has seen since
+perhaps the general availability of antibiotics
+or the internet. This tool was mind-blowingly
+powerful—like talking to a super-genius that
+could do work for you in seconds. I started
+experimenting with code generation using it. I
+had it analyze scripts I'd written in the past.
+In the first few days, I worked with it to build
+a socioeconomic simulator (which was extremely
+fun to do). Then, I turned to my old Sines
+project, dumped the code into the prompt, and
+said, "Analyze this code," which it did very
+well.
+
+At first, I started to work with ChatGPT to
+improve the old version of Sines but then
+decided to try a rewrite. Because why not?
+ChatGPT could create code so quickly; it should
+be easy. Turns out, this is not as simple as one
+might think. ChatGPT's first efforts at
+decomposing sunspot data into individual sine
+waves were pretty terrible. The code worked,
+yes. It ran without error. But the results were
+terrible. Looking at the old results I produced
+with the older version of Sines, I saw how bad
+the ChatGPT results were. The combined waves
+didn't align at all—not even close. Its first
+attempt used an FFT, and it took me a couple of
+days of prompting to achieve even this first bad
+result.
+
+I should take some time to talk about "the
+prompting." Compared to some other less advanced
+LLMs, prompting with GPT is a completely
+different experience. You are basically having a
+conversation with it. You are collaborating with
+it; you are asking it questions; it is
+responding to your questions. It presents
+options for your project, and you might pick
+one, three, all of them, or none of them and
+tell it to take a different approach. Like an
+excellent partner who can code hundreds of lines
+in seconds, it does that for you.
+
+I decided I was going to ditch ChatGPT's initial
+efforts at predicting sunspots with FFT
+algorithms and instead re-implement my old Sines
+project as I did it myself over the course of
+four years. So I started telling ChatGPT exactly
+what I wanted to do. These were long paragraphs
+of messages between us—dozens of pages
+worth—as we worked out the details and iterated
+on a codebase.
+
+This is about when I realized that there were
+different versions of ChatGPT that I could use.
+I had been using ChatGPT-4 the entire time. I
+soon discovered the enormous power of ChatGPT
+01-preview. It's like my collaborative partner
+became a super-Einstein that could command
+datacenters worth of computing power at will. I
+made leaps and bounds of progress on a new
+version of Sines using this version. And then I
+learned that there are quotas for this version
+of ChatGPT. I learned that because I used up all
+of my quota. I googled how to pay for more
+quota; there was nothing. I asked the older
+ChatGPT-4 how to pay for more quota for ChatGPT
+01-preview; it had no idea. So I started using
+ChatGPT 01-mini, which is far better than
+ChatGPT-4 when it came to my complex Sines
+project. I used this every day for a week while
+I waited for my 01-preview quota to reset.
+
+Using 01-mini, I progressed well, yet more
+slowly. My history is filled with dozens of
+chats, each with several dozens of pages worth
+of messages between me and the AI—pages of
+code, snippets, etc. Though these more advanced
+models of 01-mini and 01-preview have
+limitations; I couldn't share files with them,
+and they couldn't share files with me. So,
+sharing things like Markdown was very
+complicated. I had to give specific instructions
+to 01 to wrap the Markdown in triple backticks
+and replace the occurrences of triple backticks
+within the body with the string
+`TRIPLE_BACKTICKS` so that I could do a search
+and replace on my side to create the final
+version of various README.md files.
+
+These sorts of problems don't exist with
+ChatGPT-4 because it can share files via
+downloadable links with you. Also, working
+through graphing problems that ChatGPT-4 was not
+capable of solving was very difficult to do with
+01-mini because I couldn't show it the graph. So
+what I'd do was, with extreme detail, describe
+the graph: the numbers on the x-axis, the
+y-axis. I would describe the peaks, the troughs,
+where the data started, where it ended, where
+the plotting problems were exactly—in
+painstaking detail. These descriptions were
+often very large paragraphs by themselves, just
+to describe the graph, followed by another
+paragraph to describe the problem. However,
+because I provided enough details, 01-mini was
+able to figure out the problems in the code.
+
+This often occurred, as changes to the code
+would repeatedly break different parts of the
+script. I would provide ChatGPT with complete
+copies of the script and the output, which
+contained log entries and errors, as well as
+data sets, and it would provide me with options
+to fix them. I'd guide it concerning how I
+wanted the code to be fixed, and most of the
+time, it was able to fix the issues. Sometimes,
+01-mini really struggled, and I had to dig in,
+break the problem down, and help figure it out
+too. We worked together on this project. We
+collaborated. I used my past experience that I
+gained with the old Sines project and paired
+with this machine—a thing I talked to only
+through text. We paired and produced a
+miraculous new copy of Sines.
+
+I didn't stop at the first working version.
+Soon, I worked with ChatGPT to add OpenCL
+support to utilize my (now very old) Nvidia
+Quadro 6000 video card to help the calculations
+execute faster. None of this was simple. There
+have been hundreds upon hundreds of errors that
+needed to be diagnosed and fixed, decisions
+made, and extremely complicated problems
+solved—both logical problems and hardware
+problems, like limited RAM on my PC, limited
+chunk size on my video card, limited workspace
+size on my video card. Through utilizing my IT
+experience, my long history of programming, my
+experience with the old version of Sines, and my
+knowledge of Linux, I was able to guide ChatGPT
+to do the right things for the project.
+
+There were lots of mistakes along the way. There
+were a few dead ends where I had to backtrack.
+This is where my IT skills and knowledge of
+revision-controlled coding helped a lot. My
+experience with reading diff files was of
+immense help in evaluating the code that
+ChatGPT would give me, because sometimes it
+would leave out large chunks of code but not
+tell you. This shows up in a diff very
+evidently, and you can catch it. I eventually
+figured out that if I asked ChatGPT to output
+less—i.e., only code—it would not skip large
+chunks of code. I guess these are implementation
+problems that OpenAI is still working out. I had
+ChatGPT write unit tests for my code and started
+feeding it the results of the tests. The
+collaboration between me and the machine
+stretched for a little over a week.
+
+For most nights in the last week or so, I've
+regularly stayed awake until 2 or 3 AM coding,
+testing, experimenting, and collaborating with
+ChatGPT. I did this because, for starters, late
+night and the wee hours of the morning are quiet
+in my house—the children are sleeping. And
+secondly, I was motivated. I am still motivated.
+New life was breathed into my old project, and I
+was now rewriting it at incredible speeds, but
+better now. The new version of Sines went from
+an hour to generate a wave, to a minute, to a
+few seconds, for any wave, no matter if it was
+the first sine wave being discovered or the
+100th. As well, the codebase was much shorter.
+The old version of the Sines script is 1,237
+lines of complex code. The new version is 878
+lines and worlds better—like earth-shatteringly
+better.
+
+A key takeaway that I want the reader to be left
+with is how much work I, the human, needed to
+put in to get this new version of Sines
+created—over a week of collaboration with a
+machine. Years of experience with a past
+project. A career's worth of experience in IT
+helping me to power through the technical
+problems. My combined knowledge of my life being
+utilized to carefully tell this machine what to
+do. I had numerous alignment discussions with
+ChatGPT, where no code was involved—pages and
+pages of "These are my expectations," in detail.
+And asking it to restate my expectations in its
+own words, which it did. And sometimes there was
+not alignment, and we had to go deeper into
+certain areas to gain alignment on approach.
+
+These alignment discussions occurred often with
+ChatGPT-4 and ChatGPT 01-mini, but I've not had
+to have any with ChatGPT 01-preview; it just
+seems to understand what I want much better.
+Given, by the time my 01-preview quota had
+reset, most of the work had already been
+completed via me working with 01-mini. You might
+wonder what portions of this project I wrote
+versus what portions ChatGPT wrote. The answer
+is we wrote it together—all of it. Including
+the READMEs, the utility scripts, all the tests.
+Even the logo; I paired with ChatGPT to design
+the logo, yes. It made that SVG file in the
+repository under my guidance. Sometimes I would
+tweak a thing manually here and there in the
+code, the READMEs. But 99.9% of it was "written"
+by ChatGPT under my direction and guidance.
+
+ChatGPT alone could not have created this
+repository by itself; it would lack the
+guidance. As well, a person without my
+background or similar would not have been able
+to achieve this. The code is not "produced by a
+machine" alone; it is produced as a
+collaborative effort and cannot be produced
+without a collaborative effort. I hope you take
+away something positive about what the future
+holds from this journey I've described here. My
+takeaway is that OpenAI is charging far, far too
+little money for their service. I signed up for
+20 dollars a month. This service is worth
+several thousand dollars a month in my
+opinion—perhaps tens of thousands of dollars
+per month if they improve it further.
+
+My takeaway from the last few weeks is that LLMs
+and ChatGPT and AI in general are going to
+change the world in magnificent ways, similar to
+how electricity changed the world but probably
+with even more magnitude than that. I imagine
+personal AI assistants that operate offline,
+which you can carry around with you and can talk
+to, and it helps you with its amazing knowledge
+and logic and reasoning. Like Cortana from Halo,
+but better. This will become a reality with the
+miniaturization of TPUs like Google's Coral
+products. I imagine at some point, TPUs will
+become standard for all new smartphones—local,
+powerful AI right there on your phone. I am
+amazed by what I have been able to accomplish
+with the help of ChatGPT. It's reinvigorated me
+to hobby code and hobby experiment again,
+because I can do just so much with ChatGPT in so
+little time.
+
+Well, I'll leave it here. Have a good one.

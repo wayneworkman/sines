@@ -1,0 +1,1 @@
+The observed data here has a 27 day moving average applied. This is performed by the download.py script within the sunspots sample_data directory.

@@ -1,0 +1,8 @@
+2024-11-08 00:56:09,906 - INFO - Extrapolator is Starting
+2024-11-08 00:56:09,920 - INFO - Loaded Observed Data: 9132 data points.
+2024-11-08 00:56:09,921 - INFO - Average timespan between data points: 1.00 days.
+2024-11-08 00:56:09,922 - INFO - Loaded 10 sine wave(s) from 'sample_projects/generate_timeseries/waves'.
+2024-11-08 00:56:09,922 - INFO - Predicting 0 step(s) before the observed data.
+2024-11-08 00:56:09,922 - INFO - Predicting 0 step(s) after the observed data.
+2024-11-08 00:56:09,955 - INFO - Combined Wave Statistics:
+Min: -229.97, Max: 232.20, Mean: 5.51

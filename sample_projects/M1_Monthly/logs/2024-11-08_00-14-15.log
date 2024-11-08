@@ -1,0 +1,114 @@
+2024-11-08 00:14:15,557 - INFO - Sines is Starting
+2024-11-08 00:14:15,602 - INFO - Using device: Quadro 6000
+2024-11-08 00:14:15,603 - INFO - Max work group size: 1024
+2024-11-08 00:14:15,603 - INFO - Device Max Work Group Size: 1024
+2024-11-08 00:14:15,603 - INFO - Device Max Memory Allocation Size: 1590149120 bytes
+2024-11-08 00:14:15,609 - INFO - Loaded data from CSV file: /home/wayne/Downloads/M4Data_transformed/M1_Monthly-train.csv
+2024-11-08 00:14:15,610 - INFO - Loaded data statistics:
+2024-11-08 00:14:15,611 - INFO -   Number of data points: 469
+2024-11-08 00:14:15,611 - INFO -   Max value: 13490.0
+2024-11-08 00:14:15,611 - INFO -   Min value: 2690.0
+2024-11-08 00:14:15,611 - INFO -   Mean value: 6306.2473347547975
+2024-11-08 00:14:15,611 - INFO -   Start date: 1976-06-01 12:00:00
+2024-11-08 00:14:15,611 - INFO -   End date: 2015-06-01 12:00:00
+2024-11-08 00:14:15,874 - INFO - Starting discovery of wave 21
+2024-11-08 00:14:15,874 - INFO - Using normal step size based on difference: 949.60
+2024-11-08 00:14:15,874 - INFO - Wave 21: Starting brute-force search with one sine wave.
+2024-11-08 00:14:15,875 - INFO - Total combinations to evaluate: 41580
+2024-11-08 00:14:15,875 - INFO - Processing parameter combinations in 1 chunks of size 41580.
+2024-11-08 00:14:16,103 - INFO - Wave 21: Progress: 100.00%, Best Score So Far: 435551.09375
+2024-11-08 00:14:16,103 - INFO - Wave 21: Completed brute-force search with best score: 435551.09375
+2024-11-08 00:14:16,104 - INFO - Wave 21: Starting refinement phase.
+2024-11-08 00:14:16,106 - INFO - Wave 21: Refinement candidate 1/5 with 8000 combinations.
+2024-11-08 00:14:16,273 - INFO - Wave 21: Refinement Progress: 100.00%, Best Score So Far: 435408.875
+2024-11-08 00:14:16,274 - INFO - Wave 21: Refinement candidate 2/5 with 8000 combinations.
+2024-11-08 00:14:16,439 - INFO - Wave 21: Refinement Progress: 100.00%, Best Score So Far: 435408.875
+2024-11-08 00:14:16,440 - INFO - Wave 21: Refinement candidate 3/5 with 8000 combinations.
+2024-11-08 00:14:16,607 - INFO - Wave 21: Refinement Progress: 100.00%, Best Score So Far: 435202.84375
+2024-11-08 00:14:16,608 - INFO - Wave 21: Refinement candidate 4/5 with 8000 combinations.
+2024-11-08 00:14:16,773 - INFO - Wave 21: Refinement Progress: 100.00%, Best Score So Far: 435014.15625
+2024-11-08 00:14:16,774 - INFO - Wave 21: Refinement candidate 5/5 with 8000 combinations.
+2024-11-08 00:14:16,937 - INFO - Wave 21: Refinement Progress: 100.00%, Best Score So Far: 435014.15625
+2024-11-08 00:14:16,937 - INFO - Wave 21: Completed refinement phase with best score: 435014.15625
+2024-11-08 00:14:17,103 - INFO - Wave 21: Best score: 435014.15625
+2024-11-08 00:14:17,103 - INFO - Starting discovery of wave 22
+2024-11-08 00:14:17,103 - INFO - Using normal step size based on difference: 927.54
+2024-11-08 00:14:17,103 - INFO - Wave 22: Starting brute-force search with one sine wave.
+2024-11-08 00:14:17,104 - INFO - Total combinations to evaluate: 41580
+2024-11-08 00:14:17,104 - INFO - Processing parameter combinations in 1 chunks of size 41580.
+2024-11-08 00:14:17,306 - INFO - Wave 22: Progress: 100.00%, Best Score So Far: 424938.15625
+2024-11-08 00:14:17,306 - INFO - Wave 22: Completed brute-force search with best score: 424938.15625
+2024-11-08 00:14:17,307 - INFO - Wave 22: Starting refinement phase.
+2024-11-08 00:14:17,308 - INFO - Wave 22: Refinement candidate 1/5 with 8000 combinations.
+2024-11-08 00:14:17,472 - INFO - Wave 22: Refinement Progress: 100.00%, Best Score So Far: 419710.40625
+2024-11-08 00:14:17,473 - INFO - Wave 22: Refinement candidate 2/5 with 8000 combinations.
+2024-11-08 00:14:17,638 - INFO - Wave 22: Refinement Progress: 100.00%, Best Score So Far: 419710.21875
+2024-11-08 00:14:17,639 - INFO - Wave 22: Refinement candidate 3/5 with 8000 combinations.
+2024-11-08 00:14:17,802 - INFO - Wave 22: Refinement Progress: 100.00%, Best Score So Far: 419710.21875
+2024-11-08 00:14:17,803 - INFO - Wave 22: Refinement candidate 4/5 with 8000 combinations.
+2024-11-08 00:14:17,971 - INFO - Wave 22: Refinement Progress: 100.00%, Best Score So Far: 419710.21875
+2024-11-08 00:14:17,972 - INFO - Wave 22: Refinement candidate 5/5 with 8000 combinations.
+2024-11-08 00:14:18,136 - INFO - Wave 22: Refinement Progress: 100.00%, Best Score So Far: 419710.21875
+2024-11-08 00:14:18,136 - INFO - Wave 22: Completed refinement phase with best score: 419710.21875
+2024-11-08 00:14:18,300 - INFO - Wave 22: Best score: 419710.21875
+2024-11-08 00:14:18,300 - INFO - Starting discovery of wave 23
+2024-11-08 00:14:18,300 - INFO - Using normal step size based on difference: 894.90
+2024-11-08 00:14:18,301 - INFO - Wave 23: Starting brute-force search with one sine wave.
+2024-11-08 00:14:18,301 - INFO - Total combinations to evaluate: 41580
+2024-11-08 00:14:18,301 - INFO - Processing parameter combinations in 1 chunks of size 41580.
+2024-11-08 00:14:18,470 - INFO - Wave 23: Progress: 100.00%, Best Score So Far: 408960.59375
+2024-11-08 00:14:18,470 - INFO - Wave 23: Completed brute-force search with best score: 408960.59375
+2024-11-08 00:14:18,471 - INFO - Wave 23: Starting refinement phase.
+2024-11-08 00:14:18,472 - INFO - Wave 23: Refinement candidate 1/5 with 8000 combinations.
+2024-11-08 00:14:18,635 - INFO - Wave 23: Refinement Progress: 100.00%, Best Score So Far: 408958.5625
+2024-11-08 00:14:18,636 - INFO - Wave 23: Refinement candidate 2/5 with 8000 combinations.
+2024-11-08 00:14:18,801 - INFO - Wave 23: Refinement Progress: 100.00%, Best Score So Far: 408958.40625
+2024-11-08 00:14:18,801 - INFO - Wave 23: Refinement candidate 3/5 with 8000 combinations.
+2024-11-08 00:14:18,964 - INFO - Wave 23: Refinement Progress: 100.00%, Best Score So Far: 408958.40625
+2024-11-08 00:14:18,964 - INFO - Wave 23: Refinement candidate 4/5 with 8000 combinations.
+2024-11-08 00:14:19,127 - INFO - Wave 23: Refinement Progress: 100.00%, Best Score So Far: 408958.3125
+2024-11-08 00:14:19,128 - INFO - Wave 23: Refinement candidate 5/5 with 8000 combinations.
+2024-11-08 00:14:19,292 - INFO - Wave 23: Refinement Progress: 100.00%, Best Score So Far: 408958.3125
+2024-11-08 00:14:19,293 - INFO - Wave 23: Completed refinement phase with best score: 408958.3125
+2024-11-08 00:14:19,458 - INFO - Wave 23: Best score: 408958.3125
+2024-11-08 00:14:19,459 - INFO - Starting discovery of wave 24
+2024-11-08 00:14:19,459 - INFO - Using normal step size based on difference: 871.98
+2024-11-08 00:14:19,459 - INFO - Wave 24: Starting brute-force search with one sine wave.
+2024-11-08 00:14:19,460 - INFO - Total combinations to evaluate: 41580
+2024-11-08 00:14:19,460 - INFO - Processing parameter combinations in 1 chunks of size 41580.
+2024-11-08 00:14:19,629 - INFO - Wave 24: Progress: 100.00%, Best Score So Far: 402924.75
+2024-11-08 00:14:19,629 - INFO - Wave 24: Completed brute-force search with best score: 402924.75
+2024-11-08 00:14:19,630 - INFO - Wave 24: Starting refinement phase.
+2024-11-08 00:14:19,631 - INFO - Wave 24: Refinement candidate 1/5 with 8000 combinations.
+2024-11-08 00:14:19,795 - INFO - Wave 24: Refinement Progress: 100.00%, Best Score So Far: 395856.6875
+2024-11-08 00:14:19,796 - INFO - Wave 24: Refinement candidate 2/5 with 8000 combinations.
+2024-11-08 00:14:19,959 - INFO - Wave 24: Refinement Progress: 100.00%, Best Score So Far: 395706.0625
+2024-11-08 00:14:19,960 - INFO - Wave 24: Refinement candidate 3/5 with 8000 combinations.
+2024-11-08 00:14:20,123 - INFO - Wave 24: Refinement Progress: 100.00%, Best Score So Far: 395706.0625
+2024-11-08 00:14:20,124 - INFO - Wave 24: Refinement candidate 4/5 with 8000 combinations.
+2024-11-08 00:14:20,289 - INFO - Wave 24: Refinement Progress: 100.00%, Best Score So Far: 395706.0625
+2024-11-08 00:14:20,289 - INFO - Wave 24: Refinement candidate 5/5 with 8000 combinations.
+2024-11-08 00:14:20,453 - INFO - Wave 24: Refinement Progress: 100.00%, Best Score So Far: 395706.0625
+2024-11-08 00:14:20,453 - INFO - Wave 24: Completed refinement phase with best score: 395706.0625
+2024-11-08 00:14:20,616 - INFO - Wave 24: Best score: 395706.0625
+2024-11-08 00:14:20,616 - INFO - Starting discovery of wave 25
+2024-11-08 00:14:20,617 - INFO - Using normal step size based on difference: 843.72
+2024-11-08 00:14:20,617 - INFO - Wave 25: Starting brute-force search with one sine wave.
+2024-11-08 00:14:20,618 - INFO - Total combinations to evaluate: 41580
+2024-11-08 00:14:20,618 - INFO - Processing parameter combinations in 1 chunks of size 41580.
+2024-11-08 00:14:20,788 - INFO - Wave 25: Progress: 100.00%, Best Score So Far: 384018.125
+2024-11-08 00:14:20,788 - INFO - Wave 25: Completed brute-force search with best score: 384018.125
+2024-11-08 00:14:20,789 - INFO - Wave 25: Starting refinement phase.
+2024-11-08 00:14:20,790 - INFO - Wave 25: Refinement candidate 1/5 with 8000 combinations.
+2024-11-08 00:14:20,953 - INFO - Wave 25: Refinement Progress: 100.00%, Best Score So Far: 384018.1875
+2024-11-08 00:14:20,954 - INFO - Wave 25: Refinement candidate 2/5 with 8000 combinations.
+2024-11-08 00:14:21,118 - INFO - Wave 25: Refinement Progress: 100.00%, Best Score So Far: 384017.375
+2024-11-08 00:14:21,119 - INFO - Wave 25: Refinement candidate 3/5 with 8000 combinations.
+2024-11-08 00:14:21,283 - INFO - Wave 25: Refinement Progress: 100.00%, Best Score So Far: 384017.1875
+2024-11-08 00:14:21,284 - INFO - Wave 25: Refinement candidate 4/5 with 8000 combinations.
+2024-11-08 00:14:21,446 - INFO - Wave 25: Refinement Progress: 100.00%, Best Score So Far: 384017.1875
+2024-11-08 00:14:21,447 - INFO - Wave 25: Refinement candidate 5/5 with 8000 combinations.
+2024-11-08 00:14:21,609 - INFO - Wave 25: Refinement Progress: 100.00%, Best Score So Far: 384016.75
+2024-11-08 00:14:21,610 - INFO - Wave 25: Completed refinement phase with best score: 384016.75
+2024-11-08 00:14:21,774 - INFO - Wave 25: Best score: 384016.75
+2024-11-08 00:14:21,774 - INFO - Reached the specified wave count of 25. Exiting.
