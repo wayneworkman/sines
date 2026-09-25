@@ -114,8 +114,8 @@ def process_file(file_path, is_test=False):
         if i >= SERIES_LIMIT:
             break  # Stop processing after SERIES_LIMIT entries
         
-        series_id = row[0]
-        series_data = row[1:].dropna()  # Drop NaN values
+        series_id = row.iloc[0]
+        series_data = row.iloc[1:].dropna()  # Drop NaN values
         if series_id not in m4_info_dict:
             print(f"  Warning: Metadata not found for series {series_id}")
             continue

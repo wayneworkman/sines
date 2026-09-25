@@ -7,8 +7,6 @@ Created by [Wayne Workman](https://github.com/wayneworkman)
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-Wayne_Workman-0077B5?logo=linkedin)](https://www.linkedin.com/in/wayne-workman-a8b37b353/)
 [![SpinnyLights](https://img.shields.io/badge/SpinnyLights-wayneworkman-764ba2)](https://spinnylights.com/wayneworkman)
 
-This Terraform module deploys an AWS Lambda function that uses Amazon Bedrock to detect prompt injection attempts in user input. The module implements the security principles outlined in [this hands-on demo](https://wayne.theworkmans.us/posts/2025/10/2025-10-18-prompt-injection-hands-on-demo.html).
-
 
 ![Sines Project Logo](./sines.svg)
 
@@ -21,13 +19,11 @@ This Terraform module deploys an AWS Lambda function that uses Amazon Bedrock to
   - [Phase One: Brute-Force Search](#phase-one-brute-force-search)
   - [Phase Two: Refinement](#phase-two-refinement)
 - [Usage](#usage)
+  - [Installation](#installation)
   - [Generating Sine Waves (`sines.py`)](#generating-sine-waves-sinespy)
   - [Extrapolating Data (`extrapolator.py`)](#extrapolating-data-extrapolatorpy)
   - [Testing OpenCL Support (`test_OpenCL_support.py`)](#testing-opencl-support-test_opencl_supportpy)
-  - [Running Unit Tests (`tests.py`)](#running-unit-tests-testspy)
-  - [Sample Data Scripts](#sample-data-scripts)
-- [Testing](#testing)
-  - [Test Suite: `tests.py`](#test-suite-testspy)
+  - [Running Unit Tests (`test_sines.py`)](#running-unit-tests-test_sinespy)
 - [Performance](#performance)
 - [Known Limitations](#known-limitations)
 - [Logging](#logging)
@@ -85,6 +81,15 @@ The project operates in two primary phases: **Brute-Force Search** and **Refinem
 4. **Optional Refinement**: Users can skip this phase for faster results.
 
 ## Usage
+
+### Installation
+
+Sines requires Python 3.11 or newer and is tested on Python 3.11 through 3.14. Install the dependencies with:
+```
+pip install -r requirements.txt
+```
+
+GPU acceleration also needs an OpenCL driver for your GPU (for NVIDIA cards, it ships with the NVIDIA driver). `sines.py` looks specifically for an NVIDIA OpenCL platform.
 
 ### Generating Sine Waves (`sines.py`)
 
@@ -206,6 +211,17 @@ The `test_sines.py` script contains a comprehensive suite of unit tests to valid
 python3 test_sines.py
 ```
 
+The synthetic data generator has its own test suite, run from its directory:
+```
+cd sample_data/generate_timeseries
+python3 tests.py
+```
+
+**Running the tests without a GPU**: The OpenCL tests use the first OpenCL device they find. On a machine without a GPU (a laptop, CI runner or cloud VM), install the CPU-based [PoCL](https://portablecl.org/) driver and the same kernels run on the CPU:
+```
+pip install pocl-binary-distribution
+```
+
 **Description**:
 This test suite covers:
 - Sine wave generation, including edge cases.
@@ -234,7 +250,7 @@ This test suite covers:
 
 ## Known Limitations
 
-- **Date Range**: The date range for extrapolated data is constrained by the datetime library and Pandas limitations:
+- **Date Range**: With pandas 3.x (installed by `requirements.txt`), dates outside the traditional pandas range, such as the 1500s, load and extrapolate correctly. On older pandas 2.x installs, the date range for extrapolated data is constrained to:
   - **Start Date**: 1677-09-22
   - **End Date**: 2262-04-10
 - **Extrapolator Date Approximation**: Because `sines.py` and `extrapolator.py` both use data index rather than date to calculate data values for sine waves, the dates displayed within extrapolator are a very close approximation but not exactly correct.
@@ -276,7 +292,7 @@ git checkout -b feature/your-feature-name
 4. **Make Your Changes**: Implement your feature or fix.
 5. **Execute, Update, and Add to the Tests**:
 ```
-python3 tests.py
+python3 test_sines.py
 ```
 6. **Commit Your Changes**:  
 ```
