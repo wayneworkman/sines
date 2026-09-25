@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 import logging
 import shlex
+import sys
 
 # New imports for FFT
 from scipy.signal import find_peaks
@@ -19,6 +20,9 @@ LOCAL_WORK_SIZE = 256  # Work group size for OpenCL, must be compatible with GPU
 
 # Global STEP_SIZES initialized as empty
 STEP_SIZES = {}
+
+# File in the project directory recording the data the waves were fitted to (read by extrapolator.py)
+FIT_INFO_FILENAME = "fit_info.json"
 
 # -------------------- Refinement Step Sizes Configuration -------------------- #
 
@@ -572,7 +576,7 @@ def setup_opencl():
 
     return context, queue, max_work_group_size, max_mem_alloc_size
 
-def load_data(file_path, date_col="date", value_col="value", moving_average=None):
+def load_data(file_path, date_col="date", value_col="value", moving_average=None, return_dates=False):
     try:
         with open(file_path, 'r') as f:
             df = pd.read_json(f)
@@ -606,7 +610,39 @@ def load_data(file_path, date_col="date", value_col="value", moving_average=None
     logging.info(f"  Start date: {start_date}")
     logging.info(f"  End date: {end_date}")
 
-    return df[value_col].values.astype(np.float32)
+    values = df[value_col].values.astype(np.float32)
+    if return_dates:
+        return values, df[date_col].reset_index(drop=True)
+    return values
+
+def save_fit_info(project_dir, data_file, dates):
+    """
+    Record the data the waves are fitted to. Wave time steps count data points from the first date
+    of that data (step 0), so extrapolator.py uses this to line other data files up with the waves.
+    """
+    time_deltas = dates.diff().dropna()
+    fit_info = {
+        "data_file": data_file,
+        "start_date": dates.iloc[0].isoformat(),
+        "end_date": dates.iloc[-1].isoformat(),
+        "num_points": len(dates),
+        "avg_timespan_days": time_deltas.dt.total_seconds().mean() / 86400 if len(time_deltas) > 0 else None
+    }
+
+    fit_info_path = os.path.join(project_dir, FIT_INFO_FILENAME)
+    if os.path.exists(fit_info_path):
+        try:
+            with open(fit_info_path, "r") as f:
+                previous_start_date = json.load(f).get("start_date")
+        except ValueError:
+            previous_start_date = None
+        if previous_start_date is not None and previous_start_date != fit_info["start_date"]:
+            logging.warning(f"Waves in this project were previously fitted to data starting {previous_start_date}, "
+                            f"but this data starts {fit_info['start_date']}. Existing waves will be treated as starting {fit_info['start_date']}.")
+
+    with open(fit_info_path, "w") as f:
+        json.dump(fit_info, f, indent=4)
+    logging.info(f"Saved fit information to {fit_info_path}")
 
 def generate_sine_wave(params, num_points, set_negatives_zero=False):
     amplitude, frequency, phase_shift = params["amplitude"], params["frequency"], params["phase_shift"]
@@ -685,12 +721,14 @@ def main():
     logging.info("Sines is Starting")
 
     context, queue, max_work_group_size, max_mem_alloc_size = setup_opencl()
-    observed_data = load_data(
+    observed_data, observed_dates = load_data(
         args.data_file,
         date_col=args.date_col,
         value_col=args.value_col,
-        moving_average=args.moving_average
+        moving_average=args.moving_average,
+        return_dates=True
     )
+    save_fit_info(project_dir, args.data_file, observed_dates)
 
     if not os.path.exists(waves_dir):
         os.makedirs(waves_dir)
@@ -874,5 +912,4 @@ def main():
         plt.close(fig)
 
 if __name__ == "__main__":
-    import sys  # Needed for command log entry
     main()
