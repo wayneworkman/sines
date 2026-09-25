@@ -6,6 +6,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import logging
 import shlex
+import sys
 from datetime import datetime
 
 def load_observed_data(file_path, date_col='Timestamp', value_col='Value'):
@@ -96,24 +97,22 @@ def generate_combined_sine_wave(sine_waves, indices, set_negatives_zero='after_s
 
     Parameters:
         sine_waves (list): List of dictionaries with sine wave parameters.
-        indices (np.ndarray): Array of indices.
+        indices (np.ndarray): Time steps to evaluate the waves at. As in sines.py, step 0 is the first
+            observed data point; negative steps are before the observed data.
         set_negatives_zero (str): 'after_sum', 'per_wave', or 'none' to determine negative handling.
 
     Returns:
-        combined_wave (np.ndarray): Combined sine wave values.
+        combined_wave (np.ndarray): Combined sine wave values, one per index.
     """
     if set_negatives_zero not in ['after_sum', 'per_wave', 'none']:
         raise ValueError("set_negatives_zero must be either 'after_sum', 'per_wave', or 'none'")
 
-    # Adjust indices to start from zero
-    indices_zero_based = indices - indices[0]
-
-    combined_wave = np.zeros_like(indices_zero_based, dtype=np.float64)
+    combined_wave = np.zeros_like(indices, dtype=np.float64)
     for idx, wave in enumerate(sine_waves, start=1):
         amplitude = wave['amplitude']
         frequency = wave['frequency']
         phase_shift = wave['phase_shift']
-        sine_wave = amplitude * np.sin(2 * np.pi * frequency * indices_zero_based + phase_shift)
+        sine_wave = amplitude * np.sin(2 * np.pi * frequency * indices + phase_shift)
         
         if set_negatives_zero == 'per_wave':
             sine_wave = np.maximum(sine_wave, 0)  # Set negative values to zero per sine wave
@@ -126,6 +125,38 @@ def generate_combined_sine_wave(sine_waves, indices, set_negatives_zero='after_s
     
     return combined_wave
 
+def build_extended_timeline(dates, indices, predict_before_steps, predict_after_steps, avg_timespan=None):
+    """
+    Extend the observed indices and dates to cover the predicted steps before and after the observed data.
+
+    Parameters:
+        dates (pd.Series): Sorted series of observed datetime objects.
+        indices (np.ndarray): Array of observed indices.
+        predict_before_steps (int): Number of steps to predict before the observed data.
+        predict_after_steps (int): Number of steps to predict after the observed data.
+        avg_timespan (float, optional): Average timespan between data points in days. Defaults to 1 day.
+
+    Returns:
+        extended_indices (np.ndarray): Predicted-before, observed and predicted-after indices, in order.
+        combined_dates (pd.Series): Date for every extended index, indexed by extended index.
+    """
+    if avg_timespan is None:
+        logging.warning("Average timespan is not available. Using 1 day steps for predictions.")
+        avg_timespan = 1.0
+
+    before_indices = np.arange(indices[0] - predict_before_steps, indices[0])
+    after_indices = np.arange(indices[-1] + 1, indices[-1] + 1 + predict_after_steps)
+    extended_indices = np.concatenate([before_indices, indices, after_indices])
+
+    # Step back from the first date and forward from the last date, oldest date first
+    first_date = dates.iloc[0]
+    last_date = dates.iloc[-1]
+    before_dates = [first_date - pd.Timedelta(days=avg_timespan * i) for i in range(predict_before_steps, 0, -1)]
+    after_dates = [last_date + pd.Timedelta(days=avg_timespan * i) for i in range(1, predict_after_steps + 1)]
+
+    combined_dates = pd.Series(before_dates + list(dates) + after_dates, index=extended_indices)
+    return extended_indices, combined_dates
+
 def plot_data(dates, indices, data_values, combined_wave, extended_dates=None):
     """
     Plot the observed data and the combined sine wave with dates on the x-axis.
@@ -134,7 +165,8 @@ def plot_data(dates, indices, data_values, combined_wave, extended_dates=None):
         dates (pd.Series): Series of datetime objects with indices matching 'indices'.
         indices (np.ndarray): Array of indices.
         data_values (np.ndarray): Array of observed data values.
-        combined_wave (np.ndarray): Combined sine wave values.
+        combined_wave (pd.Series): Combined sine wave values indexed by data index, covering the
+            observed indices and any predicted indices in 'extended_dates'.
         extended_dates (dict, optional): Extended dates including predictions.
     """
     plt.figure(figsize=(14, 7))
@@ -142,21 +174,19 @@ def plot_data(dates, indices, data_values, combined_wave, extended_dates=None):
     # Plot Observed Data
     plt.plot(dates, data_values, label='Observed Data', color='blue', linestyle='-')
     
-    # Plot Combined Sine Waves
-    plt.plot(dates, combined_wave[indices - indices[0]], label='Combined Sine Waves', color='red', linestyle='-')
+    # Plot Combined Sine Waves (looked up by index label, never by array position)
+    plt.plot(dates, combined_wave.loc[indices].to_numpy(), label='Combined Sine Waves', color='red', linestyle='-')
     
     # Plot Predicted Data Before
     if extended_dates and 'before' in extended_dates:
         before_dates = extended_dates['before']['dates']
-        before_indices = extended_dates['before']['indices']
-        before_wave = combined_wave[before_indices - indices[0]]
+        before_wave = combined_wave.loc[extended_dates['before']['indices']].to_numpy()
         plt.plot(before_dates, before_wave, label='Predicted Before', color='green', linestyle='--')
     
     # Plot Predicted Data After
     if extended_dates and 'after' in extended_dates:
         after_dates = extended_dates['after']['dates']
-        after_indices = extended_dates['after']['indices']
-        after_wave = combined_wave[after_indices - indices[0]]
+        after_wave = combined_wave.loc[extended_dates['after']['indices']].to_numpy()
         plt.plot(after_dates, after_wave, label='Predicted After', color='orange', linestyle='--')
     
     # Set labels and title
@@ -235,53 +265,31 @@ def main():
     logging.info(f"Predicting {predict_before_steps} step(s) before the observed data.")
     logging.info(f"Predicting {predict_after_steps} step(s) after the observed data.")
     
-    # Generate new indices
-    original_start = indices[0] if len(indices) > 0 else 0
-    original_end = indices[-1] if len(indices) > 0 else 0
+    # Extend indices and dates to cover the predictions
+    extended_indices, combined_dates = build_extended_timeline(
+        dates, indices, predict_before_steps, predict_after_steps, avg_timespan
+    )
     
-    new_before_indices = np.arange(original_start - predict_before_steps, original_start)
-    new_after_indices = np.arange(original_end + 1, original_end + 1 + predict_after_steps)
-    
-    # Combine all indices
-    extended_indices = np.concatenate([new_before_indices, indices, new_after_indices])
-    
-    # Generate Combined Sine Wave for Extended Indices
-    combined_wave_extended = generate_combined_sine_wave(sine_waves, extended_indices, set_negatives_zero=args.set_negatives_zero)
-    
-    # Generate new dates
-    if avg_timespan is not None:
-        # Generate dates before the first date
-        first_date = dates.iloc[0]
-        before_dates = [first_date - pd.Timedelta(days=avg_timespan * (predict_before_steps - i)) for i in range(predict_before_steps, 0, -1)]
-        
-        # Generate dates after the last date
-        last_date = dates.iloc[-1]
-        after_dates = [last_date + pd.Timedelta(days=avg_timespan * (i + 1)) for i in range(predict_after_steps)]
-    else:
-        # If avg_timespan is not available, default to 1 day steps
-        logging.warning("Average timespan is not available. Using 1 day steps for predictions.")
-        first_date = dates.iloc[0]
-        last_date = dates.iloc[-1]
-        before_dates = [first_date - pd.Timedelta(days=i) for i in range(predict_before_steps, 0, -1)]
-        after_dates = [last_date + pd.Timedelta(days=i) for i in range(1, predict_after_steps + 1)]
-    
-    # Combine dates with extended indices
-    combined_dates = pd.Series(before_dates + list(dates) + after_dates, index=extended_indices)
+    # Generate Combined Sine Wave for Extended Indices, keyed by index for plotting
+    combined_wave_extended = pd.Series(
+        generate_combined_sine_wave(sine_waves, extended_indices, set_negatives_zero=args.set_negatives_zero),
+        index=extended_indices
+    )
     
     # Adjusted indices for observed data within the extended indices
-    observed_start_idx = len(new_before_indices)
+    observed_start_idx = predict_before_steps
     observed_end_idx = observed_start_idx + len(indices)
     
     # Prepare extended_dates dictionary for plotting
     extended_dates_dict = {}
     if predict_before_steps > 0:
         extended_dates_dict['before'] = {
-            'indices': new_before_indices,
+            'indices': extended_indices[:observed_start_idx],
             'dates': combined_dates.iloc[:observed_start_idx]
         }
     if predict_after_steps > 0:
         extended_dates_dict['after'] = {
-            'indices': new_after_indices,
+            'indices': extended_indices[observed_end_idx:],
             'dates': combined_dates.iloc[observed_end_idx:]
         }
     
@@ -299,5 +307,4 @@ def main():
               extended_dates=extended_dates_dict if extended_dates_dict else None)
 
 if __name__ == '__main__':
-    import sys  # Needed for command log entry
     main()

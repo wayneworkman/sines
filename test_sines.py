@@ -21,11 +21,14 @@ from extrapolator import (
     load_sine_waves,
     calculate_average_timespan,
     generate_combined_sine_wave,
+    build_extended_timeline,
     plot_data
 )
 import json
 import logging
+import matplotlib.pyplot as plt
 import sines  # Import sines module to modify sines.STEP_SIZES
+import extrapolator
 
 class TestSines(unittest.TestCase):
     def setUp(self):
@@ -572,18 +575,19 @@ class TestExtrapolator(unittest.TestCase):
         
         np.testing.assert_array_almost_equal(combined_wave, expected_combined, decimal=5)
 
-    def test_generate_combined_sine_wave_with_adjusted_indices(self):
-        # Test generate_combined_sine_wave with adjusted indices
+    def test_generate_combined_sine_wave_negative_indices(self):
+        # Negative indices are steps before the first observed point (step 0), so the waves
+        # are evaluated at the indices as given rather than re-based to start at zero
         sine_waves = [
             {"amplitude": 1, "frequency": 0.1, "phase_shift": 0}
         ]
         indices = np.arange(-5, 5)  # Indices starting from negative values
         combined_wave = generate_combined_sine_wave(sine_waves, indices, set_negatives_zero='none')
 
-        # Adjust indices to start from zero
-        indices_zero_based = indices - indices[0]
-        expected_wave = sine_waves[0]['amplitude'] * np.sin(2 * np.pi * sine_waves[0]['frequency'] * indices_zero_based + sine_waves[0]['phase_shift'])
+        expected_wave = sine_waves[0]['amplitude'] * np.sin(2 * np.pi * sine_waves[0]['frequency'] * indices + sine_waves[0]['phase_shift'])
         np.testing.assert_array_almost_equal(combined_wave, expected_wave, decimal=5)
+        # Steps 0 onward match the wave that sines.py fitted to the observed data
+        np.testing.assert_array_almost_equal(combined_wave[5:], generate_sine_wave(sine_waves[0], 5), decimal=5)
 
     def test_combined_dates_alignment(self):
         # Test that combined_dates and indices are correctly aligned
@@ -592,25 +596,9 @@ class TestExtrapolator(unittest.TestCase):
         data_values = np.array([100, 200, 150])
         indices = np.arange(len(data_values))
 
-        # Assume average timespan is 1 day
-        avg_timespan = 1.0
-
-        # Prepare arguments
-        predict_before_steps = 2
-        predict_after_steps = 2
-        extended_indices = np.concatenate([
-            indices[0] - np.arange(predict_before_steps, 0, -1),
-            indices,
-            indices[-1] + np.arange(1, predict_after_steps + 1)
-        ])
-
-        # Generate dates
-        first_date = dates.iloc[0]
-        last_date = dates.iloc[-1]
-        before_dates = [first_date - pd.Timedelta(days=avg_timespan * i) for i in range(predict_before_steps, 0, -1)]
-        after_dates = [last_date + pd.Timedelta(days=avg_timespan * i) for i in range(1, predict_after_steps + 1)]
-
-        combined_dates = pd.Series(before_dates + list(dates) + after_dates, index=extended_indices)
+        extended_indices, combined_dates = build_extended_timeline(
+            dates, indices, predict_before_steps=2, predict_after_steps=2, avg_timespan=1.0
+        )
 
         # Check that the combined_dates have the correct indices
         expected_indices = np.concatenate([
@@ -618,6 +606,7 @@ class TestExtrapolator(unittest.TestCase):
             np.arange(0, 3),
             np.arange(3, 5)
         ])
+        self.assertTrue(np.array_equal(extended_indices, expected_indices))
         self.assertTrue(np.array_equal(combined_dates.index, expected_indices))
 
         # Check that the dates are correctly ordered
@@ -634,7 +623,8 @@ class TestExtrapolator(unittest.TestCase):
         dates = pd.Series(pd.to_datetime(["2020-01-01", "2020-01-02", "2020-01-03"]))
         indices = np.arange(3)
         data_values = np.array([100, 200, 150])
-        combined_wave = np.array([90, 210, 160, 170, 180])  # Includes predictions
+        # One value per index, including the predicted indices before and after
+        combined_wave = pd.Series([80, 85, 90, 210, 160, 170, 180], index=np.arange(-2, 5))
 
         extended_dates_dict = {
             'before': {
@@ -651,6 +641,87 @@ class TestExtrapolator(unittest.TestCase):
         with patch('extrapolator.plt.show') as mock_show:
             plot_data(observed_dates, indices, data_values, combined_wave, extended_dates=extended_dates_dict)
             mock_show.assert_called_once()
+        lines = {line.get_label(): line.get_ydata() for line in plt.gca().get_lines()}
+        plt.close("all")
+
+        # Each segment shows the wave values for its own indices
+        np.testing.assert_array_equal(lines["Predicted Before"], [80, 85])
+        np.testing.assert_array_equal(lines["Combined Sine Waves"], [90, 210, 160])
+        np.testing.assert_array_equal(lines["Predicted After"], [170, 180])
+
+    def test_build_extended_timeline_uses_average_timespan(self):
+        # Weekly data: predicted dates step by the average timespan, oldest first
+        dates = pd.Series(pd.date_range("2020-01-06", periods=4, freq="7D"))
+        indices = np.arange(4)
+
+        extended_indices, combined_dates = build_extended_timeline(
+            dates, indices, predict_before_steps=3, predict_after_steps=2, avg_timespan=7.0
+        )
+
+        np.testing.assert_array_equal(extended_indices, np.arange(-3, 6))
+        expected_dates = pd.Series(pd.date_range("2019-12-16", periods=9, freq="7D"), index=np.arange(-3, 6))
+        pd.testing.assert_series_equal(combined_dates, expected_dates)
+        self.assertTrue(combined_dates.is_monotonic_increasing)
+
+    def test_build_extended_timeline_without_average_timespan(self):
+        # With a single observed date there is no average timespan; predictions use 1 day steps
+        dates = pd.Series(pd.to_datetime(["2020-01-01"]))
+        indices = np.arange(1)
+
+        with self.assertLogs(level='WARNING'):
+            extended_indices, combined_dates = build_extended_timeline(
+                dates, indices, predict_before_steps=2, predict_after_steps=1, avg_timespan=None
+            )
+
+        np.testing.assert_array_equal(extended_indices, [-2, -1, 0, 1])
+        expected_dates = pd.Series(pd.to_datetime(["2019-12-30", "2019-12-31", "2020-01-01", "2020-01-02"]), index=np.arange(-2, 2))
+        pd.testing.assert_series_equal(combined_dates, expected_dates)
+
+    def test_main_predictions_continue_fitted_model(self):
+        # Every plotted line must be the model that sines.py fitted (t = 0 at the first observed
+        # point), evaluated at the step matching each date
+        project_dir = os.path.join(self.test_dir, "project")
+        os.makedirs(os.path.join(project_dir, "waves"))
+        wave_params = {"amplitude": 3.0, "frequency": 0.03, "phase_shift": 0.4}
+        with open(os.path.join(project_dir, "waves", "wave_1.json"), "w") as f:
+            json.dump(wave_params, f)
+
+        observed_dates = pd.date_range("2020-01-01", periods=20, freq="D")
+        data_file = os.path.join(self.test_dir, "data.csv")
+        pd.DataFrame({"date": observed_dates, "value": np.arange(20)}).to_csv(data_file, index=False)
+
+        # Capture the plotted lines when the plot would be shown
+        plotted = {}
+        def capture_lines():
+            for line in plt.gca().get_lines():
+                plotted[line.get_label()] = (pd.to_datetime(line.get_xdata()), np.asarray(line.get_ydata(), dtype=float))
+        self.mock_show.side_effect = capture_lines
+
+        argv = ["extrapolator.py", "--data-file", data_file, "--project-dir", project_dir,
+                "--date-col", "date", "--value-col", "value", "--predict-before", "25", "--predict-after", "25"]
+        # main() opens a log file handler even though logging is already configured by setUp;
+        # stub it out so the handler's file is not left open
+        with patch("sys.argv", argv), patch("logging.FileHandler", return_value=logging.NullHandler()):
+            extrapolator.main()
+        plt.close("all")
+
+        def model(t):
+            return wave_params["amplitude"] * np.sin(2 * np.pi * wave_params["frequency"] * np.asarray(t, dtype=float) + wave_params["phase_shift"])
+
+        # 25% of 20 points = 5 predicted steps on each side
+        before_dates, before_values = plotted["Predicted Before"]
+        np.testing.assert_array_equal(before_dates, pd.date_range(end="2019-12-31", periods=5, freq="D"))
+        np.testing.assert_array_almost_equal(before_values, model(np.arange(-5, 0)), decimal=5)
+
+        fit_dates, fit_values = plotted["Combined Sine Waves"]
+        np.testing.assert_array_equal(fit_dates, observed_dates)
+        np.testing.assert_array_almost_equal(fit_values, model(np.arange(20)), decimal=5)
+        # The observed-range line matches what sines.py fitted
+        np.testing.assert_array_almost_equal(fit_values, generate_sine_wave(wave_params, 20), decimal=5)
+
+        after_dates, after_values = plotted["Predicted After"]
+        np.testing.assert_array_equal(after_dates, pd.date_range(start="2020-01-21", periods=5, freq="D"))
+        np.testing.assert_array_almost_equal(after_values, model(np.arange(20, 25)), decimal=5)
 
 
     def test_generate_combined_sine_wave_with_set_negatives_zero_after_sum(self):
