@@ -102,7 +102,7 @@ python3 sines.py --data-file sample_data/sunspots/SN_d_tot_V2.0.csv --project-di
 
 #### Arguments
 - `--data-file`: **(Required)** Path to the input data file (JSON or CSV).
-- `--project-dir`: **(Required)** Directory to store project data including waves and logs.
+- `--project-dir`: **(Required)** Directory to store project data including waves, logs and `fit_info.json` (a record of the data the waves were fitted to, used by `extrapolator.py`).
 - `--date-col`: Name of the date column in the input data (default: `date`).
 - `--value-col`: Name of the value column in the input data (default: `value`).
 - `--moving-average`: Optional window size for smoothing data with a moving average.
@@ -159,6 +159,13 @@ python3 extrapolator.py --data-file sample_data/sunspots/SN_d_tot_V2.0.csv --pro
 - `--predict-before`: Percentage of data points to predict before the observed data (default: `5.0`).
 - `--predict-after`: Percentage of data points to predict after the observed data (default: `5.0`).
 - `--moving-average`: Apply a moving average filter to smooth the data (default: `None`).
+- `--fit-start-date`: First date of the data `sines.py` fitted the waves to (for example `2000-01-01`). Only needed for projects without a `fit_info.json`; see below.
+
+#### Extrapolating a Different Data File
+
+`sines.py` numbers data points from 0, starting at the first date of the data it fits, and records that data in `fit_info.json` in the project directory. `extrapolator.py` uses it to line any data file up with the waves, so you can fit on one file and extrapolate over another that covers a longer period (such as `sample_data/generate_timeseries/testing_data.csv`, which extends the training data).
+
+Projects created before `sines.py` wrote `fit_info.json` treat the data file's first date as the fit's start, which is only correct for the data the waves were fitted to. For other data files, pass the fit's start date with `--fit-start-date`, or run `sines.py` on the project once more to create `fit_info.json`.
 
 #### Detailed Explanation of `--set-negatives-zero`
 
@@ -259,7 +266,7 @@ This test suite covers:
   - **Start Date**: 1677-09-22
   - **End Date**: 2262-04-10
 - **Extrapolator Date Approximation**: Because `sines.py` and `extrapolator.py` both use data index rather than date to calculate data values for sine waves, the dates displayed within extrapolator are a very close approximation but not exactly correct.
-- **Extrapolator data alignment**: Some observed data don't align correctly with combined sine wave values. This is a known issue and will hopefully be fixed in a future version.
+- **Extrapolator data alignment**: The extrapolator lines a data file up with the waves using the fit's start date (see [Extrapolating a Different Data File](#extrapolating-a-different-data-file)), assuming the file has the same spacing between data points as the fitted data. Like `sines.py`, it counts data points rather than dates, so data points missing from a file shift the ones after them.
 - **Performance on Large Datasets**: High-amplitude datasets with extensive data points significantly increase processing times due to larger search spaces.
 - **Step Size Configuration**: Improper step size configurations can lead to suboptimal sine wave discoveries or excessively long computation times.
 - **Dependency on GPU**: Optimal performance relies on GPU availability and proper OpenCL setup. Systems without compatible GPUs may experience degraded performance.

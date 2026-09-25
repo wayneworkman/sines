@@ -13,7 +13,8 @@ from sines import (
     refine_candidates,
     brute_force_sine_wave_search,
     setup_opencl,
-    estimate_initial_frequencies  # Import estimate_initial_frequencies for testing
+    estimate_initial_frequencies,  # Import estimate_initial_frequencies for testing
+    save_fit_info
     # Do not import STEP_SIZES here
 )
 from extrapolator import (
@@ -22,6 +23,8 @@ from extrapolator import (
     calculate_average_timespan,
     generate_combined_sine_wave,
     build_extended_timeline,
+    load_fit_info,
+    calculate_step_offset,
     plot_data
 )
 import json
@@ -411,6 +414,69 @@ class TestSines(unittest.TestCase):
             self.assertIsInstance(score, np.float32)
             self.assertGreaterEqual(score, 0)
 
+    def test_load_data_return_dates(self):
+        # The dates come back sorted, in the same order as the values
+        file_path = os.path.join(self.test_dir, "test_data.csv")
+        with open(file_path, "w") as f:
+            f.write("date,value\n2020-01-03,300\n2020-01-01,100\n2020-01-02,200\n")
+
+        values, dates = load_data(file_path, "date", "value", return_dates=True)
+        np.testing.assert_array_almost_equal(values, np.array([100, 200, 300], dtype=np.float32), decimal=5)
+        self.assertEqual(list(dates), list(pd.to_datetime(["2020-01-01", "2020-01-02", "2020-01-03"])))
+
+    def test_save_fit_info(self):
+        dates = pd.Series(pd.date_range("2020-01-01", periods=4, freq="7D"))
+        save_fit_info(self.test_dir, "data.csv", dates)
+
+        with open(os.path.join(self.test_dir, "fit_info.json")) as f:
+            fit_info = json.load(f)
+        self.assertEqual(fit_info, {
+            "data_file": "data.csv",
+            "start_date": "2020-01-01T00:00:00",
+            "end_date": "2020-01-22T00:00:00",
+            "num_points": 4,
+            "avg_timespan_days": 7.0
+        })
+        # extrapolator.py reads it back
+        self.assertEqual(load_fit_info(self.test_dir)["start_date"], pd.Timestamp("2020-01-01"))
+
+    def test_save_fit_info_warns_when_start_date_changes(self):
+        save_fit_info(self.test_dir, "first.csv", pd.Series(pd.date_range("2020-01-01", periods=3)))
+
+        # Resuming the project with data that starts on another date shifts the existing waves
+        with self.assertLogs(level="WARNING") as log:
+            save_fit_info(self.test_dir, "second.csv", pd.Series(pd.date_range("2021-01-01", periods=3)))
+        self.assertTrue(any("previously fitted to data starting 2020-01-01" in message for message in log.output))
+        self.assertEqual(load_fit_info(self.test_dir)["start_date"], pd.Timestamp("2021-01-01"))
+
+    def test_main_saves_fit_info(self):
+        # sines.main() records the data it fits so extrapolator.py can line other data files up with the waves
+        project_dir = os.path.join(self.test_dir, "project")
+        data_file = os.path.join(self.test_dir, "data.csv")
+        t = np.arange(300)
+        # Large values make main() choose the coarse 'fast' search grid, keeping the search quick
+        pd.DataFrame({
+            "date": pd.date_range("2020-01-01", periods=300, freq="D"),
+            "value": 3000 * np.sin(2 * np.pi * 0.0005 * t + 1.0)
+        }).to_csv(data_file, index=False)
+
+        device = self.context.devices[0]
+        argv = ["sines.py", "--data-file", data_file, "--project-dir", project_dir, "--wave-count", "1",
+                "--desired-refinement-step-size", "skip", "--no-plot"]
+        # main() opens a log file handler even though logging is already configured by setUp;
+        # stub it out so the handler's file is not left open
+        with patch("sys.argv", argv), \
+             patch("sines.setup_opencl", return_value=(self.context, self.queue, device.max_work_group_size, device.max_mem_alloc_size)), \
+             patch("logging.FileHandler", return_value=logging.NullHandler()):
+            sines.main()
+
+        self.assertTrue(os.path.exists(os.path.join(project_dir, "waves", "wave_1.json")))
+        fit_info = load_fit_info(project_dir)
+        self.assertEqual(fit_info["data_file"], data_file)
+        self.assertEqual(fit_info["start_date"], pd.Timestamp("2020-01-01"))
+        self.assertEqual(fit_info["num_points"], 300)
+        self.assertEqual(fit_info["avg_timespan_days"], 1.0)
+
 class TestExtrapolator(unittest.TestCase):
     def setUp(self):
         # Set logging level to suppress non-critical messages during tests
@@ -677,19 +743,25 @@ class TestExtrapolator(unittest.TestCase):
         expected_dates = pd.Series(pd.to_datetime(["2019-12-30", "2019-12-31", "2020-01-01", "2020-01-02"]), index=np.arange(-2, 2))
         pd.testing.assert_series_equal(combined_dates, expected_dates)
 
-    def test_main_predictions_continue_fitted_model(self):
-        # Every plotted line must be the model that sines.py fitted (t = 0 at the first observed
-        # point), evaluated at the step matching each date
+    # Wave used by the extrapolator main() tests
+    WAVE_PARAMS = {"amplitude": 3.0, "frequency": 0.03, "phase_shift": 0.4}
+
+    def make_project(self, fit_info=None):
         project_dir = os.path.join(self.test_dir, "project")
         os.makedirs(os.path.join(project_dir, "waves"))
-        wave_params = {"amplitude": 3.0, "frequency": 0.03, "phase_shift": 0.4}
         with open(os.path.join(project_dir, "waves", "wave_1.json"), "w") as f:
-            json.dump(wave_params, f)
+            json.dump(self.WAVE_PARAMS, f)
+        if fit_info is not None:
+            with open(os.path.join(project_dir, "fit_info.json"), "w") as f:
+                json.dump(fit_info, f)
+        return project_dir
 
-        observed_dates = pd.date_range("2020-01-01", periods=20, freq="D")
+    def write_data_file(self, dates):
         data_file = os.path.join(self.test_dir, "data.csv")
-        pd.DataFrame({"date": observed_dates, "value": np.arange(20)}).to_csv(data_file, index=False)
+        pd.DataFrame({"date": dates, "value": np.arange(len(dates))}).to_csv(data_file, index=False)
+        return data_file
 
+    def run_main_and_capture_lines(self, *args):
         # Capture the plotted lines when the plot would be shown
         plotted = {}
         def capture_lines():
@@ -697,31 +769,106 @@ class TestExtrapolator(unittest.TestCase):
                 plotted[line.get_label()] = (pd.to_datetime(line.get_xdata()), np.asarray(line.get_ydata(), dtype=float))
         self.mock_show.side_effect = capture_lines
 
-        argv = ["extrapolator.py", "--data-file", data_file, "--project-dir", project_dir,
-                "--date-col", "date", "--value-col", "value", "--predict-before", "25", "--predict-after", "25"]
+        argv = ["extrapolator.py", "--date-col", "date", "--value-col", "value", *args]
         # main() opens a log file handler even though logging is already configured by setUp;
         # stub it out so the handler's file is not left open
         with patch("sys.argv", argv), patch("logging.FileHandler", return_value=logging.NullHandler()):
             extrapolator.main()
         plt.close("all")
+        return plotted
 
-        def model(t):
-            return wave_params["amplitude"] * np.sin(2 * np.pi * wave_params["frequency"] * np.asarray(t, dtype=float) + wave_params["phase_shift"])
+    def model(self, steps):
+        # The wave as sines.py fitted it, evaluated at the given time steps
+        return self.WAVE_PARAMS["amplitude"] * np.sin(
+            2 * np.pi * self.WAVE_PARAMS["frequency"] * np.asarray(steps, dtype=float) + self.WAVE_PARAMS["phase_shift"])
+
+    def test_main_predictions_continue_fitted_model(self):
+        # Every plotted line must be the model that sines.py fitted (t = 0 at the first observed
+        # point), evaluated at the step matching each date
+        project_dir = self.make_project()
+        observed_dates = pd.date_range("2020-01-01", periods=20, freq="D")
+        data_file = self.write_data_file(observed_dates)
+
+        # Without fit_info.json, the first data point is taken as step 0 and a warning says so
+        with self.assertLogs(level="WARNING") as log:
+            plotted = self.run_main_and_capture_lines(
+                "--data-file", data_file, "--project-dir", project_dir, "--predict-before", "25", "--predict-after", "25")
+        self.assertTrue(any("No fit_info.json" in message for message in log.output))
 
         # 25% of 20 points = 5 predicted steps on each side
         before_dates, before_values = plotted["Predicted Before"]
         np.testing.assert_array_equal(before_dates, pd.date_range(end="2019-12-31", periods=5, freq="D"))
-        np.testing.assert_array_almost_equal(before_values, model(np.arange(-5, 0)), decimal=5)
+        np.testing.assert_array_almost_equal(before_values, self.model(np.arange(-5, 0)), decimal=5)
 
         fit_dates, fit_values = plotted["Combined Sine Waves"]
         np.testing.assert_array_equal(fit_dates, observed_dates)
-        np.testing.assert_array_almost_equal(fit_values, model(np.arange(20)), decimal=5)
+        np.testing.assert_array_almost_equal(fit_values, self.model(np.arange(20)), decimal=5)
         # The observed-range line matches what sines.py fitted
-        np.testing.assert_array_almost_equal(fit_values, generate_sine_wave(wave_params, 20), decimal=5)
+        np.testing.assert_array_almost_equal(fit_values, generate_sine_wave(self.WAVE_PARAMS, 20), decimal=5)
 
         after_dates, after_values = plotted["Predicted After"]
         np.testing.assert_array_equal(after_dates, pd.date_range(start="2020-01-21", periods=5, freq="D"))
-        np.testing.assert_array_almost_equal(after_values, model(np.arange(20, 25)), decimal=5)
+        np.testing.assert_array_almost_equal(after_values, self.model(np.arange(20, 25)), decimal=5)
+
+    def test_main_aligns_data_with_fit_start_date(self):
+        # The waves were fitted to data starting 2020-01-11, but this file starts 10 days earlier
+        # (as testing_data.csv extends training_data.csv), so its first data point is step -10
+        project_dir = self.make_project(fit_info={"start_date": "2020-01-11T00:00:00", "avg_timespan_days": 1.0})
+        observed_dates = pd.date_range("2020-01-01", periods=30, freq="D")
+        data_file = self.write_data_file(observed_dates)
+
+        plotted = self.run_main_and_capture_lines(
+            "--data-file", data_file, "--project-dir", project_dir, "--predict-before", "10", "--predict-after", "10")
+
+        fit_dates, fit_values = plotted["Combined Sine Waves"]
+        np.testing.assert_array_equal(fit_dates, observed_dates)
+        np.testing.assert_array_almost_equal(fit_values, self.model(np.arange(-10, 20)), decimal=5)
+        # From 2020-01-11 on, the line is exactly what sines.py fitted
+        np.testing.assert_array_almost_equal(fit_values[10:], generate_sine_wave(self.WAVE_PARAMS, 20), decimal=5)
+        # 10% of 30 points = 3 predicted steps on each side, continuing the aligned steps
+        np.testing.assert_array_almost_equal(plotted["Predicted Before"][1], self.model(np.arange(-13, -10)), decimal=5)
+        np.testing.assert_array_almost_equal(plotted["Predicted After"][1], self.model(np.arange(20, 23)), decimal=5)
+
+    def test_main_fit_start_date_argument(self):
+        # Projects created before sines.py saved fit_info.json can pass the fit's start date instead
+        project_dir = self.make_project()
+        data_file = self.write_data_file(pd.date_range("2020-01-01", periods=30, freq="D"))
+
+        plotted = self.run_main_and_capture_lines(
+            "--data-file", data_file, "--project-dir", project_dir, "--predict-before", "0", "--predict-after", "0",
+            "--fit-start-date", "2020-01-11")
+
+        np.testing.assert_array_almost_equal(plotted["Combined Sine Waves"][1], self.model(np.arange(-10, 20)), decimal=5)
+
+    def test_load_fit_info(self):
+        # Projects created before sines.py saved fit_info.json have none
+        self.assertIsNone(load_fit_info(self.test_dir))
+
+        with open(os.path.join(self.test_dir, "fit_info.json"), "w") as f:
+            json.dump({"start_date": "2000-01-01T00:00:00", "avg_timespan_days": 1.0}, f)
+        fit_info = load_fit_info(self.test_dir)
+        self.assertEqual(fit_info["start_date"], pd.Timestamp("2000-01-01"))
+        self.assertEqual(fit_info["avg_timespan_days"], 1.0)
+
+    def test_calculate_step_offset(self):
+        fit_start_date = pd.Timestamp("2020-01-01")
+        def daily(start, periods):
+            return pd.Series(pd.date_range(start, periods=periods, freq="D"))
+
+        # Data starting on the fit's start date, such as the fitted data itself, is not shifted
+        self.assertEqual(calculate_step_offset(daily("2020-01-01", 10), fit_start_date, 1.0), 0)
+        # Data starting earlier: each earlier data point is one step before step 0
+        self.assertEqual(calculate_step_offset(daily("2019-12-22", 30), fit_start_date, 1.0), -10)
+        # Data starting later: the missing data points are estimated from the average timespan
+        self.assertEqual(calculate_step_offset(daily("2020-03-01", 10), fit_start_date, 1.0), 60)
+
+    def test_calculate_step_offset_monthly(self):
+        # Months differ in length, so later data is placed by rounding to the nearest step
+        fit_start_date = pd.Timestamp("2000-01-01")
+        monthly = pd.Series(pd.date_range("1998-01-01", "2003-12-01", freq="MS"))
+        self.assertEqual(calculate_step_offset(monthly, fit_start_date, 30.44), -24)
+        later = pd.Series(pd.date_range("2002-03-01", periods=12, freq="MS"))
+        self.assertEqual(calculate_step_offset(later, fit_start_date, 30.44), 26)
 
 
     def test_generate_combined_sine_wave_with_set_negatives_zero_after_sum(self):

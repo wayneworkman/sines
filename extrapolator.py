@@ -9,6 +9,9 @@ import shlex
 import sys
 from datetime import datetime
 
+# File in the project directory where sines.py records the data the waves were fitted to
+FIT_INFO_FILENAME = "fit_info.json"
+
 def load_observed_data(file_path, date_col='Timestamp', value_col='Value'):
     """
     Load the observed data from a CSV file and assign sequential indices.
@@ -90,6 +93,47 @@ def calculate_average_timespan(dates):
     avg_timespan = time_deltas.dt.total_seconds().mean() / 86400  # Convert to days
     logging.info(f"Average timespan between data points: {avg_timespan:.2f} days.")
     return avg_timespan
+
+def load_fit_info(project_dir):
+    """
+    Load the record sines.py saves of the data the waves were fitted to.
+
+    Parameters:
+        project_dir (str): Project directory.
+
+    Returns:
+        fit_info (dict or None): Fit information with 'start_date' as a pd.Timestamp, or None if the
+            project has no fit information (projects created before sines.py recorded it).
+    """
+    fit_info_path = os.path.join(project_dir, FIT_INFO_FILENAME)
+    if not os.path.exists(fit_info_path):
+        return None
+    with open(fit_info_path, 'r') as f:
+        fit_info = json.load(f)
+    fit_info['start_date'] = pd.Timestamp(fit_info['start_date'])
+    return fit_info
+
+def calculate_step_offset(dates, fit_start_date, avg_timespan):
+    """
+    Calculate the wave time step of the first data point.
+
+    sines.py numbers data points from 0 starting at the first date of the data it fitted, so data that
+    starts on a different date must be shifted to line up with the waves.
+
+    Parameters:
+        dates (pd.Series): Sorted series of observed datetime objects.
+        fit_start_date (pd.Timestamp): First date of the data the waves were fitted to.
+        avg_timespan (float): Average timespan between the fitted data points in days, used to estimate
+            the number of missing data points when the data starts after fit_start_date.
+
+    Returns:
+        offset (int): Time step of the first data point (0 when the data starts on fit_start_date).
+    """
+    if dates.iloc[0] <= fit_start_date:
+        # Every data point before the fit's start date is one step before step 0
+        return -int((dates < fit_start_date).sum())
+    # The data points between the fit's start date and this data are not in the file, so estimate how many there are
+    return int(round((dates.iloc[0] - fit_start_date) / pd.Timedelta(days=avg_timespan)))
 
 def generate_combined_sine_wave(sine_waves, indices, set_negatives_zero='after_sum'):
     """
@@ -215,6 +259,9 @@ def main():
                         help="Percentage of data points to predict after the observed data (default: 5.0)")
     
     parser.add_argument('--moving-average', type=int, default=None, help="Apply a moving average filter to smooth the data")
+    parser.add_argument('--fit-start-date', type=str, default=None,
+                        help=f"First date of the data sines.py fitted the waves to. Only needed for projects without a {FIT_INFO_FILENAME}, "
+                             "which sines.py writes to the project directory")
     
     args = parser.parse_args()
     
@@ -252,6 +299,22 @@ def main():
     
     # Calculate Average Timespan Difference
     avg_timespan = calculate_average_timespan(dates)
+    
+    # Line the data up with the time steps the waves were fitted with
+    fit_info = load_fit_info(project_dir)
+    if args.fit_start_date:
+        fit_start_date = pd.Timestamp(args.fit_start_date)
+    elif fit_info is not None:
+        fit_start_date = fit_info['start_date']
+    else:
+        fit_start_date = None
+        logging.warning(f"No {FIT_INFO_FILENAME} in '{project_dir}'. Assuming the waves were fitted to data starting on this "
+                        f"file's first date ({dates.iloc[0]}). If they were not, pass --fit-start-date.")
+    if fit_start_date is not None:
+        fit_timespan = fit_info.get('avg_timespan_days') if fit_info is not None else None
+        offset = calculate_step_offset(dates, fit_start_date, fit_timespan or avg_timespan or 1.0)
+        indices = indices + offset
+        logging.info(f"Waves were fitted to data starting {fit_start_date}; the first data point is time step {offset}.")
     
     # Load Sine Waves
     sine_waves = load_sine_waves(waves_dir)

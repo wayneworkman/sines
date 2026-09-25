@@ -1,0 +1,7 @@
+{
+    "data_file": "sample_data/sunspots/SN_d_tot_V2.0.csv",
+    "start_date": "1818-01-01T00:00:00",
+    "end_date": "2024-10-31T00:00:00",
+    "num_points": 75545,
+    "avg_timespan_days": 1.0
+}
