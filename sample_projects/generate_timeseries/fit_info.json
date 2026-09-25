@@ -1,0 +1,7 @@
+{
+    "data_file": "sample_data/generate_timeseries/training_data.csv",
+    "start_date": "2000-01-01T00:00:00",
+    "end_date": "2005-01-01T00:00:00",
+    "num_points": 1828,
+    "avg_timespan_days": 1.0
+}
