@@ -272,21 +272,8 @@ def refine_candidates(top_candidates, observed_data, combined_wave, context, que
                 ax.legend()
                 plt.pause(0.01)
 
-        # -------------------- Chunk Cleanup -------------------- #
-        # Explicitly delete buffers to free GPU memory
-        del observed_buf
-        del combined_buf
-        del amplitudes_buf_cl
-        del frequencies_buf_cl
-        del phase_shifts_buf_cl
-        del scores_buf_cl
-        del amplitudes_np
-        del frequencies_np
-        del phase_shifts_np
-        del scores_np
-        gc.collect()  # Force garbage collection
-
-        return new_top_candidates
+    # OpenCL buffers are released once they are no longer referenced when this function returns
+    return new_top_candidates
 
 # -------------------- Brute-Force Search Implementation -------------------- #
 
@@ -689,7 +676,7 @@ def main():
         )
 
         if args.desired_refinement_step_size.lower() != 'skip':
-            refine_candidates(
+            refined_candidates = refine_candidates(
                 top_candidates, observed_data, combined_wave, context, queue, ax, wave_count,
                 desired_refinement_step_size=args.desired_refinement_step_size,
                 set_negatives_zero=args.set_negatives_zero,
@@ -697,38 +684,31 @@ def main():
                 num_waves=args.num_waves,
                 top_n=args.top_candidates
             )
-            # After refinement, find the best candidate
+            # Keep the brute-force candidates in case refinement did not improve on them
+            top_candidates = top_candidates + refined_candidates
+        else:
+            logging.info(f"Wave(s) {wave_labels}: Refinement phase skipped.")
+
+        if top_candidates:
+            # Each candidate holds a list of parameter dicts, one per wave
             best_candidate = min(top_candidates, key=lambda x: x["score"])
             best_params = best_candidate["waves"]
             best_score = best_candidate["score"]
         else:
-            if top_candidates:
-                best_params = []
-                for w in range(args.num_waves):
-                    best_params.append(top_candidates[0]['waves'][w])
-                best_score = top_candidates[0]['score']
-                logging.info(f"Wave(s) {wave_labels}: Refinement phase skipped. Using top candidate from brute-force search.")
-            else:
-                best_params, best_score = None, np.inf
-                logging.info(f"Wave(s) {wave_labels}: Refinement phase skipped. No candidates available from brute-force search.")
+            best_params, best_score = None, np.inf
+            logging.info(f"Wave(s) {wave_labels}: No candidates available from brute-force search.")
 
         if best_params is not None:
-            # If multiple waves, save them as a list
-            if args.num_waves > 1:
-                best_params = [{k: float(v) for k, v in wave.items()} for wave in best_params]
-            else:
-                best_params = {k: float(v) for k, v in best_params.items()}
+            # Save each wave to its own file, in the same format as sines.py, so extrapolator.py can load them
+            best_params = [{k: float(v) for k, v in wave.items()} for wave in best_params]
             wave_id = len([f for f in os.listdir(args.waves_dir) if f.endswith(".json")]) + 1
-            with open(os.path.join(args.waves_dir, f"wave_{wave_id}.json"), "w") as f:
-                json.dump(best_params, f)
+            for offset, params in enumerate(best_params):
+                with open(os.path.join(args.waves_dir, f"wave_{wave_id + offset}.json"), "w") as f:
+                    json.dump(params, f)
 
             # Generate and add the new wave(s) to the combined_wave
-            if args.num_waves > 1:
-                for params in best_params:
-                    new_wave = generate_sine_wave(params, len(observed_data), set_negatives_zero=(args.set_negatives_zero == 'per_wave'))
-                    combined_wave += new_wave
-            else:
-                new_wave = generate_sine_wave(best_params, len(observed_data), set_negatives_zero=(args.set_negatives_zero == 'per_wave'))
+            for params in best_params:
+                new_wave = generate_sine_wave(params, len(observed_data), set_negatives_zero=(args.set_negatives_zero == 'per_wave'))
                 combined_wave += new_wave
 
             # No need to reload and zero the combined_wave here
