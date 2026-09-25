@@ -145,6 +145,7 @@ def refine_candidates(top_candidates, observed_data, combined_wave, context, que
     phase_shift_step = REFINEMENT_STEP_SIZES_BASE[desired_refinement_step_size]["phase_shift_step"]
 
     program = cl.Program(context, KERNEL_CODE).build()
+    kernel = program.calculate_fitness  # Retrieve once; every program.<name> lookup creates a new kernel object
     mf = cl.mem_flags
     observed_buf = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=observed_data)
     combined_buf = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=combined_wave)
@@ -212,7 +213,6 @@ def refine_candidates(top_candidates, observed_data, combined_wave, context, que
             phase_shifts_buf_cl = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=phase_shifts_np)
             scores_buf_cl = cl.Buffer(context, mf.WRITE_ONLY, size=scores_np.nbytes)
 
-            kernel = program.calculate_fitness
             kernel.set_args(
                 observed_buf, combined_buf, amplitudes_buf_cl, frequencies_buf_cl,
                 phase_shifts_buf_cl, scores_buf_cl, np.int32(len(observed_data)),
@@ -316,6 +316,7 @@ def brute_force_sine_wave_search(observed_data, combined_wave, context, queue, a
         zero_mode = 0
 
     program = cl.Program(context, KERNEL_CODE).build()
+    kernel = program.calculate_fitness  # Retrieve once; every program.<name> lookup creates a new kernel object
     mf = cl.mem_flags
     observed_buf = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=observed_data)
     combined_buf_cl = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=combined_wave)
@@ -361,7 +362,6 @@ def brute_force_sine_wave_search(observed_data, combined_wave, context, queue, a
         phase_shifts_buf_cl = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=phase_shifts_np)
         scores_buf_cl = cl.Buffer(context, mf.WRITE_ONLY, size=scores_np.nbytes)
 
-        kernel = program.calculate_fitness
         kernel.set_args(
             observed_buf, combined_buf_cl, amplitudes_buf_cl, frequencies_buf_cl,
             phase_shifts_buf_cl, scores_buf_cl, np.int32(len(observed_data)),

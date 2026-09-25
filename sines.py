@@ -267,6 +267,8 @@ def brute_force_sine_wave_search(observed_data, combined_wave, context, queue, a
     logging.info(f"Processing parameter combinations in {num_chunks} chunks of size {chunk_size}.")
 
     program = cl.Program(context, KERNEL_CODE).build()
+    # Retrieve the kernel once; every program.<name> lookup creates a new kernel object
+    kernel = program.calculate_fitness_two_waves if optimize_two_waves else program.calculate_fitness
     mf = cl.mem_flags
     observed_buf = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=observed_data)
     combined_buf = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=combined_wave)
@@ -297,7 +299,6 @@ def brute_force_sine_wave_search(observed_data, combined_wave, context, queue, a
             phase_shifts_buf2 = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=phase_shift_chunk2)
             scores_buf = cl.Buffer(context, mf.WRITE_ONLY, size=scores_chunk.nbytes)
 
-            kernel = program.calculate_fitness_two_waves
             kernel.set_args(
                 observed_buf, combined_buf, amplitudes_buf1, frequencies_buf1, phase_shifts_buf1,
                 amplitudes_buf2, frequencies_buf2, phase_shifts_buf2,
@@ -314,7 +315,6 @@ def brute_force_sine_wave_search(observed_data, combined_wave, context, queue, a
             phase_shifts_buf = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=phase_shift_chunk)
             scores_buf = cl.Buffer(context, mf.WRITE_ONLY, size=scores_chunk.nbytes)
 
-            kernel = program.calculate_fitness
             kernel.set_args(
                 observed_buf, combined_buf, amplitudes_buf, frequencies_buf,
                 phase_shifts_buf, scores_buf, np.int32(len(observed_data)), np.int32(zero_mode)
@@ -444,6 +444,7 @@ def refine_candidates(top_candidates, observed_data, combined_wave, context, que
     combined_buf = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=combined_wave)
 
     program = cl.Program(context, KERNEL_CODE_SINGLE_WAVE).build()
+    kernel = program.calculate_fitness  # Retrieve once; every program.<name> lookup creates a new kernel object
 
     for candidate_idx, (params, _) in enumerate(top_candidates):
         amplitude_min = max(params["amplitude"] - 0.5 * max_observed, 0.1)
@@ -493,7 +494,6 @@ def refine_candidates(top_candidates, observed_data, combined_wave, context, que
             phase_shifts_buf = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf=phase_shift_chunk)
             scores_buf = cl.Buffer(context, mf.WRITE_ONLY, size=scores_chunk.nbytes)
 
-            kernel = program.calculate_fitness
             kernel.set_args(
                 observed_buf, combined_buf, amplitudes_buf, frequencies_buf,
                 phase_shifts_buf, scores_buf, np.int32(len(observed_data)), np.int32(zero_mode)
