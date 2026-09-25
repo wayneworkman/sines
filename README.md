@@ -211,6 +211,11 @@ The `test_sines.py` script contains a comprehensive suite of unit tests to valid
 python3 test_sines.py
 ```
 
+The experimental `multi_sines.py` script has its own tests:
+```
+python3 test_multi_sines.py
+```
+
 The synthetic data generator has its own test suite, run from its directory:
 ```
 cd sample_data/generate_timeseries
