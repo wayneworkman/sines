@@ -1,4 +1,10 @@
-pyopencl
-numpy
-pandas
-matplotlib
+# Core: sines.py, extrapolator.py
+pyopencl>=2026.1
+numpy>=2.4
+pandas>=3.0
+matplotlib>=3.11
+scipy>=1.17
+# multi_sines.py
+psutil>=7.0
+# sample_data download/ETL scripts
+requests>=2.32
